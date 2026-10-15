@@ -150,7 +150,7 @@ LLM Knowledge Bases
 |---|---|---|
 | `x_read` | 1-10 post URLs, ids, profile URLs or @handles. `mode`: `post`, `thread`, `replies`. Profiles with up to 100 recent posts. Optional translation. | none |
 | `x_search` | 2-5 queries, `from_date`/`to_date` (inclusive), up to 20 allowed or excluded handles, image and video understanding. Every hit re-read from X. | `XAI_API_KEY` |
-| `x_audit` | an account's last 10-100 posts: cadence, mix, median and p90 views, likes per 1k followers, save and talk, link-out share, breakout, top posts by views and by saves, hints. | none |
+| `x_audit` | an account's last 10-100 posts: cadence, mix, median and p90 views, likes per 1k followers, save and talk, link-out share, breakout, top posts by views and by saves, X's "About this account", hints. | none |
 
 All three take `format: "json"` for the full structure. The skill
 ([`SKILL.md`](skills/signal-first/SKILL.md)) tells the agent when to use which, how to write
