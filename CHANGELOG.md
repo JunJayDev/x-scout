@@ -24,4 +24,8 @@ First release.
 - The skill: the loop (decide who would know, search like a good post is written, read the
   source, judge value and reach apart, audit, answer, remember), a judging sheet, the
   signals, verified notes on X's open-source ranking code, X's automation rules, a sources file.
-- Claude Code plugin with the skill and the MCP server.
+- Account audits include X's "About this account" (country, whether X trusts it, sign-up
+  source, handle changes) with hints for repurposed accounts.
+- Claude Code plugin with the skill and the MCP server; it asks for an optional xAI key and
+  keeps it in the system keychain. Codex plugin manifest for the skill. `INSTALL.md`, written
+  for agents that install it for you.

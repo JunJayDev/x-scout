@@ -116,6 +116,15 @@ export function renderRead(result) {
 
 export function renderAudit(a) {
   const lines = [renderProfile(a.profile), `source: ${a.source}`];
+  if (a.about) {
+    const ab = a.about;
+    const parts = [
+      ab.based_in ? `based in ${ab.based_in}${ab.location_accurate === false ? " (X: may be inaccurate)" : ""}` : "",
+      typeof ab.username_changes === "number" ? `handle changed ${ab.username_changes}x${ab.username_last_changed ? `, last ${ab.username_last_changed.slice(0, 10)}` : ""}` : "",
+      ab.connected_via ? `signed up via ${ab.connected_via}` : "",
+    ].filter(Boolean);
+    if (parts.length) lines.push(`about: ${parts.join(" · ")}`);
+  }
   const s = a.sample || {};
   const o = a.originals || {};
   const acc = a.account || {};

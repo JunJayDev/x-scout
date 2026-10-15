@@ -37,6 +37,7 @@ Caveats:
 | best / median (`breakout`) | ≥ 30 and the best post ≥ 10x the p90: one post carries the reach. Read it and ask why it travelled. Big accounts have viral posts all the time; that alone means little. |
 | following ≈ followers, both small | follow-back growth. Not a sin, but the follower count says little. |
 | account age, lifetime posts per day | very new accounts and sudden bursts deserve a closer look. |
+| about: country, handle changes, sign-up | X's own "About this account". Three or more handle changes, or a recent one, often means a repurposed account: read its older posts. "May be inaccurate" means X thinks the country is masked (VPN or proxy). A country is context, not a verdict. |
 
 The audit reads two timelines: posts without replies (a baseline of originals that reaches
 further back) and posts with replies (the current mix and cadence). Pinned posts are counted

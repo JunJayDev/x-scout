@@ -96,6 +96,9 @@ export function makeFetch(overrides = {}) {
       }
       if (p === "/2/profile/alice") return json(200, { code: 200, user: fxUser("alice") });
       if (p === "/2/profile/alice/statuses") return json(200, { code: 200, results: [fxStatus(11), fxStatus(12)], cursor: { bottom: null } });
+      if (p === "/2/profile/dana/about") {
+        return json(200, { code: 200, about_account: { based_in: "Japan", location_accurate: false, source: "Japan App Store", username_changes: { count: 4, last_changed_at: "2026-09-30T00:00:00.000Z" } } });
+      }
       if (p === "/2/profile/dana") return json(200, { code: 200, user: fxUser("dana", { followers: 2000, following: 1900, statuses: 500, joined: "Mon Sep 01 00:00:00 +0000 2025" }) });
       if (p === "/2/profile/dana/statuses") {
         const all = auditTimeline();

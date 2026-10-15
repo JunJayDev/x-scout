@@ -405,6 +405,19 @@ async function readProfileFx(ctx, target, opts) {
   }
   return prune(out);
 }
+async function readAbout(ctx, handle) {
+  const res = await fxGet(ctx, `/2/profile/${encodeURIComponent(handle)}/about`);
+  const a = res.data && res.data.about_account;
+  if (fxFailed(res) || !a) return null;
+  const changes = a.username_changes || {};
+  return prune({
+    based_in: a.based_in,
+    location_accurate: typeof a.location_accurate === "boolean" ? a.location_accurate : void 0,
+    connected_via: a.source,
+    username_changes: typeof changes.count === "number" ? changes.count : void 0,
+    username_last_changed: changes.last_changed_at ? toIso(changes.last_changed_at) : void 0
+  });
+}
 function normVx(t) {
   if (!t || typeof t !== "object" || !t.tweetID) return null;
   const media = (t.media_extended || []).filter((m) => m && m.url && m.type !== "txt" && m.type !== "rtf").map((m) => prune({ type: m.type === "image" ? "photo" : m.type, url: m.url, alt: m.altText, thumbnail: m.type === "image" ? void 0 : m.thumbnail_url }));
@@ -739,21 +752,32 @@ function hints(profile, a) {
   }
   return h;
 }
+function aboutHints(a, now = Date.now()) {
+  const h = [];
+  if (a.username_changes >= 3) h.push(`handle changed ${a.username_changes} times: repurposed accounts often do; check older posts`);
+  const last = Date.parse(a.username_last_changed);
+  if (Number.isFinite(last) && now - last < 90 * DAY) h.push(`handle changed on ${a.username_last_changed.slice(0, 10)}`);
+  if (a.location_accurate === false) h.push("X says the account's country may not be accurate (VPN or proxy)");
+  return h;
+}
 async function runAudit(raw, ctx) {
   if (!raw || typeof raw !== "object") throw new InputError("arguments must be an object");
   const target = parseTarget(raw.account || raw.handle || "");
   if (target.kind === "post") throw new InputError("account must be a profile URL or @handle, not a post");
   if (target.kind !== "profile") throw new InputError(`account: ${target.reason || "pass an @handle or profile URL"}`);
   const count = clampInt(raw.posts, 60, 10, 100, "posts");
-  const [own, recent] = await Promise.all([
+  const [own, recent, about] = await Promise.all([
     readProfile(ctx, target, { profilePosts: count, profileReplies: false }),
-    readProfile(ctx, target, { profilePosts: Math.min(count, 40), profileReplies: true }).catch(() => null)
+    readProfile(ctx, target, { profilePosts: Math.min(count, 40), profileReplies: true }).catch(() => null),
+    readAbout(ctx, target.handle).catch(() => null)
   ]);
   const audit = auditAccount(own.profile, own.recent_posts || [], Date.now(), recent && recent.recent_posts);
+  if (about) audit.hints.push(...aboutHints(about));
   return prune({
     kind: "audit",
     source: own.source,
     profile: own.profile,
+    about: about || void 0,
     ...audit,
     posts_error: own.posts_error || recent && recent.posts_error
   });
@@ -866,6 +890,15 @@ function renderRead(result) {
 }
 function renderAudit(a) {
   const lines = [renderProfile(a.profile), `source: ${a.source}`];
+  if (a.about) {
+    const ab = a.about;
+    const parts2 = [
+      ab.based_in ? `based in ${ab.based_in}${ab.location_accurate === false ? " (X: may be inaccurate)" : ""}` : "",
+      typeof ab.username_changes === "number" ? `handle changed ${ab.username_changes}x${ab.username_last_changed ? `, last ${ab.username_last_changed.slice(0, 10)}` : ""}` : "",
+      ab.connected_via ? `signed up via ${ab.connected_via}` : ""
+    ].filter(Boolean);
+    if (parts2.length) lines.push(`about: ${parts2.join(" · ")}`);
+  }
   const s = a.sample || {};
   const o = a.originals || {};
   const acc = a.account || {};

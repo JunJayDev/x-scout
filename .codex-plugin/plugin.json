@@ -1,0 +1,17 @@
+{
+  "name": "signal-first",
+  "version": "0.1.0",
+  "description": "Read, search and judge X (Twitter): read any X link without login, search by meaning with every hit checked against X, audit accounts, and judge value and reach separately.",
+  "keywords": [
+    "x",
+    "twitter",
+    "media-literacy",
+    "search",
+    "skills"
+  ],
+  "skills": "./skills",
+  "interface": {
+    "displayName": "signal-first",
+    "shortDescription": "Read, search and judge X (Twitter)"
+  }
+}

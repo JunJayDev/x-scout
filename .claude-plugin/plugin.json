@@ -14,13 +14,25 @@
   "author": {
     "name": "signal-first contributors"
   },
+  "userConfig": {
+    "xai_api_key": {
+      "type": "string",
+      "title": "xAI API key (optional)",
+      "description": "Turns on x_search. Get one at https://console.x.ai. Leave empty to read and audit only; you can also run `signal-first setup` later.",
+      "sensitive": true,
+      "required": false
+    }
+  },
   "mcpServers": {
     "signal-first": {
       "command": "node",
       "args": [
         "${CLAUDE_PLUGIN_ROOT}/skills/signal-first/scripts/signal-first.mjs",
         "mcp"
-      ]
+      ],
+      "env": {
+        "XAI_API_KEY": "${user_config.xai_api_key}"
+      }
     }
   }
 }

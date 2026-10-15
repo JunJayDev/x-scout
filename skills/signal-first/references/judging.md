@@ -13,6 +13,12 @@ posts; the user can disagree with a line, not with a vibe.
 | **New?** | restates the news or a known list | a new angle on known facts | facts or results not elsewhere yet |
 | **Useful here?** | off the question | related | answers part of the question |
 
+Before scoring, answer two questions in one line each. **What is the author selling?** (a
+product, a course, a community, attention, nothing). **Which claims carry the post?** Sort them:
+fact (checkable now), prediction, opinion, anecdote. Score "checkable" on the facts that carry
+the post, not on the easy ones around them. A post that restates what everyone already said
+scores at most 1 on "new", however well written.
+
 Read the replies before you score "checkable": a correction from the maintainer, a community
 note or the author's own walk-back changes the score.
 

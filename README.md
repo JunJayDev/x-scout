@@ -70,8 +70,9 @@ should read the second.
 
 ## Install
 
-Pick one. An agent can do any of these for you; the only human steps are pasting an xAI key
-(optional) and, for the remote server, clicking "Allow" on Cloudflare once.
+Pick one. An agent can do any of these for you: tell it "install signal-first, following
+https://github.com/<owner>/signal-first/blob/main/INSTALL.md". The only human steps are pasting
+an xAI key (optional) and, for the remote server, clicking "Allow" on Cloudflare once.
 
 **Claude Code plugin** (skill and tools together)
 
@@ -80,7 +81,11 @@ Pick one. An agent can do any of these for you; the only human steps are pasting
 ```
 
 On Claude Code older than 2.1.275: `/plugin marketplace add <owner>/signal-first`, then
-`/plugin install signal-first@signal-first`.
+`/plugin install signal-first@signal-first`. The plugin asks for an optional xAI key and keeps it
+in your system keychain.
+
+**Codex plugin** (the skill): `codex plugin marketplace add <owner>/signal-first`, then install
+signal-first from the plugin list. For the tools, add the MCP server below.
 
 **Any MCP client** (Codex, Cursor, Claude Desktop, Claude Code without the plugin...)
 
@@ -200,7 +205,28 @@ const { items } = await runRead({ targets: ["https://x.com/jack/status/20"] }, c
 
 ## Related projects
 
-<!-- filled from the prior-art scan -->
+Reading X for agents is a busy space. Judging what you read is not. signal-first is the one
+that keeps value and reach apart, checks every search hit against X, compares accounts with
+their own baseline, and applies the same judgment to your drafts. Star counts as of 2026-10-15.
+
+- [FxEmbed](https://github.com/FxEmbed/FxEmbed) (FxTwitter): the main read source here. If you
+  read a lot, its maintainers ask you to self-host.
+- [x-reader](https://github.com/runesleo/x-reader) and [x-md](https://github.com/pc-style/x-md):
+  read X (and more) for agents, with MCP servers and skills. x-md also searches without a key
+  through an account pool it runs; x-reader's install guide for agents inspired [INSTALL.md](INSTALL.md).
+- [Agent-Reach](https://github.com/Panniantong/Agent-Reach): one installer for reading many
+  platforms. Its X search uses your own X cookies; signal-first never touches your account.
+- [twitterapi.io MCP](https://github.com/kaitoInfra/twitterapi-io-mcp-server): a paid X data
+  API with read tools; a good choice when you need volume.
+- [bangermeter](https://github.com/itsryanlenk/bangermeter): scores a post's reach with X's
+  published weights, citing source lines. signal-first describes reach and scores value.
+- [twag](https://github.com/clifton/twag): LLM triage of tweets with capped scores (restating a
+  known view caps the score) and rolling account averages.
+- [bullshit-detector](https://github.com/SerhiiKorniienko/bullshit-detector): checks a text claim
+  by claim. The judging sheet borrows two of its questions: what is the author selling, and
+  which claims carry the post.
+- [Bouncer](https://github.com/imbue-ai/bouncer): filters your feed with categories you write in
+  plain words. It acts on a timeline; signal-first answers questions.
 
 Part of a series on media literacy for agents. [reuse-first](https://github.com/<owner>/reuse-first)
 does the same for GitHub: before an agent builds something, it finds what open source already

@@ -266,6 +266,24 @@ async function readProfileFx(ctx, target, opts) {
   return prune(out);
 }
 
+/**
+ * X's "About this account" (via FxTwitter): country, whether X trusts it, how the account
+ * signed up, and how often the handle changed. Returns null when unavailable.
+ */
+export async function readAbout(ctx, handle) {
+  const res = await fxGet(ctx, `/2/profile/${encodeURIComponent(handle)}/about`);
+  const a = res.data && res.data.about_account;
+  if (fxFailed(res) || !a) return null;
+  const changes = a.username_changes || {};
+  return prune({
+    based_in: a.based_in,
+    location_accurate: typeof a.location_accurate === "boolean" ? a.location_accurate : undefined,
+    connected_via: a.source,
+    username_changes: typeof changes.count === "number" ? changes.count : undefined,
+    username_last_changed: changes.last_changed_at ? toIso(changes.last_changed_at) : undefined,
+  });
+}
+
 // --- vxTwitter ----------------------------------------------------------------------------
 
 function normVx(t) {

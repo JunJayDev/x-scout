@@ -29,11 +29,16 @@ test("audit: classifies posts and computes baselines", async () => {
   assert.ok(a.hints.some((h) => /keep these posts/.test(h)));
   const timelines = fake.calls.filter((c) => c.url.includes("/statuses"));
   assert.equal(timelines.length, 2);
+  assert.ok(fake.calls.some((c) => c.url.endsWith("/2/profile/dana/about")));
   assert.ok(timelines.some((c) => /with_replies=1/.test(c.url)));
   assert.ok(timelines.some((c) => !/with_replies/.test(c.url)));
   assert.equal(a.top_by_views.filter((p) => p.text === "the big one").length, 1); // pinned duplicate removed
   assert.equal(a.originals.count, 14);
+  assert.equal(a.about.username_changes, 4);
+  assert.ok(a.hints.some((h) => /handle changed 4 times/.test(h)));
+  assert.ok(a.hints.some((h) => /may not be accurate/.test(h)));
   const text = renderAudit(a);
+  assert.match(text, /about: based in Japan \(X: may be inaccurate\) · handle changed 4x, last 2026-09-30 · signed up via Japan App Store/);
   assert.match(text, /sample: 20 posts/);
   assert.match(text, /top by views:\n- 120k views/);
   assert.match(text, /hints \(check them against the posts\):/);

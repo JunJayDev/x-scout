@@ -24,6 +24,7 @@ test("config file: written 0600, read back, env wins", () => {
   assert.deepEqual(readConfigFile(path), { XAI_API_KEY: "xai-file" });
   assert.equal(loadEnv(env).XAI_API_KEY, "xai-file");
   assert.equal(loadEnv({ ...env, XAI_API_KEY: "xai-env" }).XAI_API_KEY, "xai-env");
+  assert.equal(loadEnv({ ...env, XAI_API_KEY: "${user_config.xai_api_key}" }).XAI_API_KEY, "xai-file");
   writeConfigValue("XAI_API_KEY", null, env);
   assert.equal(readFileSync(path, "utf8").trim(), "");
 });

@@ -32,7 +32,8 @@ export function readConfigFile(path) {
 export function loadEnv(env = process.env) {
   const file = readConfigFile(configPath(env));
   const merged = { ...file };
-  for (const [k, v] of Object.entries(env)) if (v !== undefined && v !== "") merged[k] = v;
+  // A plugin host that could not fill a value may pass the placeholder through ("${user_config.x}").
+  for (const [k, v] of Object.entries(env)) if (v !== undefined && v !== "" && !/^\$\{[^}]*\}$/.test(v)) merged[k] = v;
   return merged;
 }
 

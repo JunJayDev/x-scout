@@ -3,7 +3,7 @@
 // skills/signal-first/references/signals.md.
 
 import { InputError, clampInt, median, prune, quantile } from "./util.js";
-import { parseTarget, readProfile } from "./read.js";
+import { parseTarget, readAbout, readProfile } from "./read.js";
 
 const round = (x, d = 2) => (Number.isFinite(x) ? Number(x.toFixed(d)) : undefined);
 const MIN_LIKES = 10; // below this, ratios are noise
@@ -181,6 +181,15 @@ function hints(profile, a) {
   return h;
 }
 
+function aboutHints(a, now = Date.now()) {
+  const h = [];
+  if (a.username_changes >= 3) h.push(`handle changed ${a.username_changes} times: repurposed accounts often do; check older posts`);
+  const last = Date.parse(a.username_last_changed);
+  if (Number.isFinite(last) && now - last < 90 * DAY) h.push(`handle changed on ${a.username_last_changed.slice(0, 10)}`);
+  if (a.location_accurate === false) h.push("X says the account's country may not be accurate (VPN or proxy)");
+  return h;
+}
+
 /** x_audit: read a profile with its recent posts and replies, then compute the numbers. */
 export async function runAudit(raw, ctx) {
   if (!raw || typeof raw !== "object") throw new InputError("arguments must be an object");
@@ -190,15 +199,18 @@ export async function runAudit(raw, ctx) {
   const count = clampInt(raw.posts, 60, 10, 100, "posts");
   // Two timelines: without replies for a baseline of originals that reaches further back,
   // with replies for the mix and the cadence.
-  const [own, recent] = await Promise.all([
+  const [own, recent, about] = await Promise.all([
     readProfile(ctx, target, { profilePosts: count, profileReplies: false }),
     readProfile(ctx, target, { profilePosts: Math.min(count, 40), profileReplies: true }).catch(() => null),
+    readAbout(ctx, target.handle).catch(() => null),
   ]);
   const audit = auditAccount(own.profile, own.recent_posts || [], Date.now(), recent && recent.recent_posts);
+  if (about) audit.hints.push(...aboutHints(about));
   return prune({
     kind: "audit",
     source: own.source,
     profile: own.profile,
+    about: about || undefined,
     ...audit,
     posts_error: own.posts_error || (recent && recent.posts_error),
   });
