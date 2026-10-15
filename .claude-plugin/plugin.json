@@ -1,0 +1,26 @@
+{
+  "name": "signal-first",
+  "version": "0.1.0",
+  "description": "Read, search and judge X (Twitter): read any X link without login, search by meaning with every hit checked against X, audit accounts, and judge value and reach separately.",
+  "license": "MIT",
+  "keywords": [
+    "x",
+    "twitter",
+    "mcp",
+    "media-literacy",
+    "search",
+    "skills"
+  ],
+  "author": {
+    "name": "signal-first contributors"
+  },
+  "mcpServers": {
+    "signal-first": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/skills/signal-first/scripts/signal-first.mjs",
+        "mcp"
+      ]
+    }
+  }
+}

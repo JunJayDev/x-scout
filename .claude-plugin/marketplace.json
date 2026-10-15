@@ -1,0 +1,12 @@
+{
+  "name": "signal-first",
+  "description": "signal-first: let agents read, search and judge X (Twitter)",
+  "owner": { "name": "signal-first contributors" },
+  "plugins": [
+    {
+      "name": "signal-first",
+      "source": "./",
+      "description": "Read, search and judge X (Twitter): read any X link without login, search by meaning with every hit checked against X, audit accounts, and judge value and reach separately."
+    }
+  ]
+}

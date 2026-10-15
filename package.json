@@ -1,0 +1,46 @@
+{
+  "name": "signal-first",
+  "version": "0.1.0",
+  "description": "Teach your agent to read X like an expert: read any X link without login, search X by meaning with every hit checked, and judge posts and accounts on value, not reach. Agent skill, CLI, local MCP, one-command Cloudflare remote MCP.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "signal-first": "bin/signal-first.js"
+  },
+  "exports": {
+    ".": "./src/index.js",
+    "./worker": "./src/worker.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check && node --test",
+    "dev": "wrangler dev src/worker.js"
+  },
+  "keywords": [
+    "x",
+    "twitter",
+    "mcp",
+    "mcp-server",
+    "agent-skill",
+    "claude-code",
+    "grok",
+    "media-literacy",
+    "cloudflare-workers"
+  ],
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "wrangler": "^4.151.0"
+  }
+}

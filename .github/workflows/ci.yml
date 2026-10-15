@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: ["18", "20", "22", "24"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Unit tests (offline)
+        run: node --test
+      - name: The copied skill folder runs on its own
+        shell: bash
+        run: |
+          cp -R skills/signal-first "$RUNNER_TEMP/skill"
+          node "$RUNNER_TEMP/skill/scripts/signal-first.mjs" --version
+          node "$RUNNER_TEMP/skill/scripts/signal-first.mjs" tools
+      - name: The npm package installs and runs
+        shell: bash
+        run: |
+          npm pack --silent
+          npm install -g ./signal-first-*.tgz
+          signal-first --version
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - name: Bundles in skills/ match src/
+        run: node scripts/build.mjs --check
+      - name: The Worker builds
+        run: npx wrangler deploy --dry-run --outdir dist src/worker.js --name signal-first --compatibility-date 2025-09-01
