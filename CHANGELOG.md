@@ -8,7 +8,8 @@ First release.
   (views, likes, replies, reposts, quotes, bookmarks), quoted post, media, link card, poll,
   community note, translation and the full body of X Articles; author threads; replies with
   paging; profiles with recent posts. Falls back from FxTwitter to vxTwitter to X's embed
-  endpoint and says what the fallback could not provide.
+  endpoint and says what the fallback could not provide. Posts carry the author's avatar
+  (`author_avatar`) and profiles theirs (`avatar`) when the source gives one.
 - `x_search`: 2-5 queries through xAI's `x_search` tool, merged by post, then every hit
   re-read from X. Text, author, time and counts come from X; hits that cannot be confirmed
   are kept as unverified leads. Inclusive date range, handle filters, cost cap per query,

@@ -28,6 +28,7 @@ test("targets: every URL form resolves to the same post", () => {
 test("post: full FxTwitter data (quote, media, note, article, translation)", async () => {
   const { ctx, fake } = ctxWith();
   const r = await runRead({ targets: ["https://x.com/alice/status/100"], translate_to: "zh" }, ctx);
+  assert.equal(r.items[0].post.author_avatar, "https://pbs.twimg.com/profile_images/1/alice_normal.jpg", "the author's avatar comes with the post");
   const it = r.items[0];
   assert.equal(it.source, "fxtwitter");
   const p = it.post;

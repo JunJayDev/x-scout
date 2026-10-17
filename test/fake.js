@@ -11,7 +11,8 @@ export const ENV = {
 export function fxUser(h, extra = {}) {
   return {
     screen_name: h, name: h.toUpperCase(), followers: 1234, following: 5, statuses: 99, likes: 10,
-    description: `bio of ${h}`, joined: "Tue Mar 21 20:50:14 +0000 2006", verification: { verified: true }, ...extra,
+    description: `bio of ${h}`, joined: "Tue Mar 21 20:50:14 +0000 2006", verification: { verified: true },
+    avatar_url: `https://pbs.twimg.com/profile_images/1/${h}_normal.jpg`, ...extra,
   };
 }
 
