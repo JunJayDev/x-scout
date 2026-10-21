@@ -123,7 +123,8 @@ Or set `XAI_API_KEY` in the environment. Run `deploy` again to give the remote s
 
 ## Quick start
 
-Install the command with `npm install -g github:JunJayDev/x-scout`, or write
+Install the command with
+`npm install -g https://github.com/JunJayDev/x-scout/archive/refs/heads/main.tar.gz`, or write
 `npx -y github:JunJayDev/x-scout` in place of `x-scout`.
 
 ```bash

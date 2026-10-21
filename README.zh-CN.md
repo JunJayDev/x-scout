@@ -85,7 +85,7 @@ npx -y github:JunJayDev/x-scout doctor     # 检查 key 和每个读取数据源
 
 ## 快速上手
 
-用 `npm install -g github:JunJayDev/x-scout` 安装命令，或者把下面的 `x-scout` 换成 `npx -y github:JunJayDev/x-scout`。
+用 `npm install -g https://github.com/JunJayDev/x-scout/archive/refs/heads/main.tar.gz` 安装命令，或者把下面的 `x-scout` 换成 `npx -y github:JunJayDev/x-scout`。
 
 ```bash
 x-scout read https://x.com/karpathy/status/2039805659525644595
