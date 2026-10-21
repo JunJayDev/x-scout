@@ -3,7 +3,7 @@
 **What leaves your machine.** Reading sends post ids and handles to FxTwitter
 (api.fxtwitter.com), vxTwitter (api.vxtwitter.com) and X's embed endpoint
 (cdn.syndication.twimg.com). Searching sends your queries and filters to xAI (api.x.ai), or to
-the relay you configured. Nothing else is contacted, and no X account or cookie is used.
+the xAI-compatible endpoint you set in `XAI_API_BASE`. Nothing else is contacted, and no X account or cookie is used.
 
 **Keys.** `XAI_API_KEY` is read from the environment or from
 `~/.config/x-scout/config.env` (created with mode 0600 by `x-scout setup`). It is

@@ -3,7 +3,7 @@
 
 import { makeContext } from "./util.js";
 import { readPost, readProfile } from "./read.js";
-import { searchProvider } from "./search.js";
+import { DEFAULT_XAI_MODEL, searchProvider } from "./search.js";
 
 async function check(label, fn, out) {
   const t = Date.now();
@@ -37,17 +37,29 @@ export async function doctor(env, out, { configFile } = {}) {
 
   const provider = searchProvider(env);
   if (provider === "xai") {
-    await check("xAI API key", async () => {
-      const base = (env.XAI_API_BASE || "https://api.x.ai/v1").replace(/\/+$/, "");
-      const res = await ctx.fetch(`${base}/api-key`, { headers: { authorization: `Bearer ${env.XAI_API_KEY}` } });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${body.error || body.code || ""}`.trim());
-      const blocked = body.api_key_blocked || body.api_key_disabled || body.team_blocked;
-      if (blocked) throw new Error("the key or its team is blocked or disabled");
-      return `${body.name || "key"} works${body.acls ? `, scopes: ${[].concat(body.acls).join(" ")}` : ""}`;
-    }, out);
-  } else if (provider === "relay") {
-    out(`ok    search via relay ${new URL(env.X_SEARCH_ENDPOINT).host} (not tested: a test search costs money)`);
+    const base = (env.XAI_API_BASE || "https://api.x.ai/v1").replace(/\/+$/, "");
+    const auth = { headers: { authorization: `Bearer ${env.XAI_API_KEY}` } };
+    if (env.XAI_API_BASE) {
+      // An xAI-compatible endpoint may lack xAI's /api-key; /models is the common ground.
+      const model = env.XAI_MODEL || DEFAULT_XAI_MODEL;
+      await check(`xAI-compatible endpoint ${new URL(base).host}`, async () => {
+        const res = await ctx.fetch(`${base}/models`, auth);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${(body.error && body.error.message) || body.error || ""}`.trim());
+        const ids = (body.data || []).map((m) => m.id);
+        if (!ids.includes(model)) throw new Error(`the key works, but ${model} is not listed (set XAI_MODEL to one of: ${ids.filter((i) => /grok/i.test(i)).join(", ") || "none"})`);
+        return `the key works and lists ${model} (not tested: a search costs money)`;
+      }, out);
+    } else {
+      await check("xAI API key", async () => {
+        const res = await ctx.fetch(`${base}/api-key`, auth);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${body.error || body.code || ""}`.trim());
+        const blocked = body.api_key_blocked || body.api_key_disabled || body.team_blocked;
+        if (blocked) throw new Error("the key or its team is blocked or disabled");
+        return `${body.name || "key"} works${body.acls ? `, scopes: ${[].concat(body.acls).join(" ")}` : ""}`;
+      }, out);
+    }
   } else {
     out(`off   x_search: no XAI_API_KEY. Run: x-scout setup${configFile ? ` (saves to ${configFile})` : ""}`);
   }

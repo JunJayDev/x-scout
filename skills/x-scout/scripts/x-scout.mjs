@@ -970,9 +970,7 @@ var init_render = __esm({
 
 // src/search.js
 function searchProvider(env = {}) {
-  if (env.XAI_API_KEY) return "xai";
-  if (env.X_SEARCH_ENDPOINT && env.X_SEARCH_API_KEY) return "relay";
-  return null;
+  return env.XAI_API_KEY ? "xai" : null;
 }
 function parseSearchArgs(raw) {
   if (!raw || typeof raw !== "object") throw new InputError("arguments must be an object");
@@ -1066,7 +1064,7 @@ function xaiTool(args) {
     enable_video_understanding: args.video || void 0
   });
 }
-function parseXaiResponse(data) {
+function parseXaiResponse(data, maxResults = 20) {
   const cited = /* @__PURE__ */ new Set();
   const addUrl = (u2) => {
     const url = typeof u2 === "string" ? u2 : u2 && u2.url;
@@ -1094,15 +1092,22 @@ function parseXaiResponse(data) {
       claimed = [];
     }
   }
-  const results = claimed.map((x) => ({
-    url: str(x.url),
-    author: str(x.author),
-    published_at: str(x.date),
-    snippet: str(x.text),
-    cited: [...cited].some((u2) => statusId(u2) === statusId(x.url))
-  }));
+  const results = [];
+  const has = (url) => results.some((r) => statusId(r.url) === statusId(url));
+  for (const x of claimed) {
+    if (results.length >= maxResults) break;
+    if (has(x.url)) continue;
+    results.push({
+      url: str(x.url),
+      author: str(x.author),
+      published_at: str(x.date),
+      snippet: str(x.text),
+      cited: [...cited].some((u2) => statusId(u2) === statusId(x.url))
+    });
+  }
   for (const u2 of cited) {
-    if (!results.some((r) => statusId(r.url) === statusId(u2))) results.push({ url: u2, cited: true });
+    if (results.length >= maxResults) break;
+    if (!has(u2)) results.push({ url: u2, cited: true });
   }
   const u = data.usage || {};
   const tools = u.server_side_tool_usage_details || {};
@@ -1130,34 +1135,13 @@ async function searchXai(ctx, args, query) {
     { authorization: `Bearer ${ctx.env.XAI_API_KEY}` },
     (Number(ctx.env.SEARCH_TIMEOUT_S) || 120) * 1e3
   );
-  return parseXaiResponse(data);
-}
-async function searchRelay(ctx, args, query) {
-  const payload = prune({
-    query,
-    max_results: args.maxResults,
-    from_date: args.fromDate || void 0,
-    to_date: args.toDate || void 0,
-    allowed_x_handles: args.allowed.length ? args.allowed : void 0,
-    excluded_x_handles: args.excluded.length ? args.excluded : void 0,
-    enable_image_understanding: args.image || void 0,
-    enable_video_understanding: args.video || void 0
-  });
-  const data = await postJson(
-    ctx,
-    ctx.env.X_SEARCH_ENDPOINT,
-    payload,
-    { authorization: `Bearer ${ctx.env.X_SEARCH_API_KEY}` },
-    (Number(ctx.env.SEARCH_TIMEOUT_S) || 170) * 1e3
-  );
-  const results = (Array.isArray(data.results) ? data.results : []).filter((r) => r && statusId(r.url)).map((r) => ({ url: str(r.url), author: str(r.author), published_at: str(r.published_at), snippet: str(r.snippet), cited: true }));
-  return { results, provider_detail: data.provider };
+  return parseXaiResponse(data, args.maxResults);
 }
 async function runSearch(raw, ctx) {
   const args = parseSearchArgs(raw);
   const provider = searchProvider(ctx.env);
-  const search = provider === "xai" ? searchXai : searchRelay;
-  const settled = await Promise.allSettled(args.queries.map((q) => search(ctx, args, q)));
+  if (!provider) throw new ConfigError("x_search needs XAI_API_KEY");
+  const settled = await Promise.allSettled(args.queries.map((q) => searchXai(ctx, args, q)));
   const failures = settled.map((s, i) => s.status === "rejected" ? `query ${JSON.stringify(args.queries[i])}: ${s.reason.message}` : null).filter(Boolean);
   if (failures.length) throw new Error(failures.join("; "));
   const merged = /* @__PURE__ */ new Map();
@@ -1177,6 +1161,7 @@ async function runSearch(raw, ctx) {
   let hits = [...merged.values()];
   hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length);
   let verifiedCount = 0;
+  let notFound = 0;
   if (args.verify) {
     const toCheck = hits.slice(0, VERIFY_LIMIT);
     await mapLimit(toCheck, 5, async (h) => {
@@ -1188,9 +1173,11 @@ async function runSearch(raw, ctx) {
           verifiedCount++;
         } else {
           h.unverified = `X says the post is unavailable (${r.post && r.post.unavailable || "unknown"})`;
+          notFound++;
         }
       } catch (err) {
         h.unverified = `could not read it from X: ${err.message}`;
+        notFound++;
       }
     });
     for (const h of hits.slice(VERIFY_LIMIT)) h.unverified = `not checked (only the first ${VERIFY_LIMIT} are verified)`;
@@ -1212,7 +1199,8 @@ async function runSearch(raw, ctx) {
       to_date: args.toDate
     }),
     verified: args.verify ? verifiedCount : void 0,
-    unverified: args.verify ? hits.length - verifiedCount : void 0,
+    unverified: args.verify ? notFound : void 0,
+    unchecked: args.verify ? Math.max(0, hits.length - VERIFY_LIMIT) : void 0,
     unexpected_authors: unexpected,
     results: hits.map(
       (h) => prune({
@@ -1230,7 +1218,7 @@ async function runSearch(raw, ctx) {
 function renderSearch(r) {
   const head = [
     `${r.results.length} posts from ${r.rounds.length} queries (${r.provider})`,
-    r.verified !== void 0 ? `${r.verified} confirmed on X, ${r.unverified} not` : "not verified"
+    r.verified === void 0 ? "not verified" : [`${r.verified} confirmed on X`, r.unverified ? `${r.unverified} not found on X` : "", r.unchecked ? `${r.unchecked} not checked (only the first ${VERIFY_LIMIT} are)` : ""].filter(Boolean).join(", ")
   ];
   const lines = [head.join(" · ")];
   for (const q of r.rounds) {
@@ -1540,17 +1528,28 @@ async function doctor(env, out, { configFile } = {}) {
   if (!ok) out("      no read source answered: check your network or proxy");
   const provider = searchProvider(env);
   if (provider === "xai") {
-    await check("xAI API key", async () => {
-      const base = (env.XAI_API_BASE || "https://api.x.ai/v1").replace(/\/+$/, "");
-      const res = await ctx.fetch(`${base}/api-key`, { headers: { authorization: `Bearer ${env.XAI_API_KEY}` } });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${body.error || body.code || ""}`.trim());
-      const blocked = body.api_key_blocked || body.api_key_disabled || body.team_blocked;
-      if (blocked) throw new Error("the key or its team is blocked or disabled");
-      return `${body.name || "key"} works${body.acls ? `, scopes: ${[].concat(body.acls).join(" ")}` : ""}`;
-    }, out);
-  } else if (provider === "relay") {
-    out(`ok    search via relay ${new URL(env.X_SEARCH_ENDPOINT).host} (not tested: a test search costs money)`);
+    const base = (env.XAI_API_BASE || "https://api.x.ai/v1").replace(/\/+$/, "");
+    const auth = { headers: { authorization: `Bearer ${env.XAI_API_KEY}` } };
+    if (env.XAI_API_BASE) {
+      const model = env.XAI_MODEL || DEFAULT_XAI_MODEL;
+      await check(`xAI-compatible endpoint ${new URL(base).host}`, async () => {
+        const res = await ctx.fetch(`${base}/models`, auth);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${body.error && body.error.message || body.error || ""}`.trim());
+        const ids = (body.data || []).map((m) => m.id);
+        if (!ids.includes(model)) throw new Error(`the key works, but ${model} is not listed (set XAI_MODEL to one of: ${ids.filter((i) => /grok/i.test(i)).join(", ") || "none"})`);
+        return `the key works and lists ${model} (not tested: a search costs money)`;
+      }, out);
+    } else {
+      await check("xAI API key", async () => {
+        const res = await ctx.fetch(`${base}/api-key`, auth);
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${body.error || body.code || ""}`.trim());
+        const blocked = body.api_key_blocked || body.api_key_disabled || body.team_blocked;
+        if (blocked) throw new Error("the key or its team is blocked or disabled");
+        return `${body.name || "key"} works${body.acls ? `, scopes: ${[].concat(body.acls).join(" ")}` : ""}`;
+      }, out);
+    }
   } else {
     out(`off   x_search: no XAI_API_KEY. Run: x-scout setup${configFile ? ` (saves to ${configFile})` : ""}`);
   }
@@ -1566,6 +1565,7 @@ var init_doctor = __esm({
 // src/deploy.js
 var deploy_exports = {};
 __export(deploy_exports, {
+  SEARCH_SECRETS: () => SEARCH_SECRETS,
   deploy: () => deploy,
   workerEntry: () => workerEntry
 });
@@ -1711,16 +1711,20 @@ ${who.out.slice(0, 400)}`);
   if (!url) throw new Error("deployed, but wrangler printed no workers.dev URL. Find it in the Cloudflare dashboard.");
   out("Uploading secrets...");
   const secrets = { MCP_TOKEN: token };
-  if (xaiKey) secrets.XAI_API_KEY = xaiKey;
+  if (xaiKey) {
+    for (const k of SEARCH_SECRETS) if (env[k]) secrets[k] = env[k];
+  }
   for (const [k, v] of Object.entries(secrets)) {
     const r = await w(["secret", "put", k], { input: v, quiet: true });
     if (r.code !== 0) throw new Error(`could not set the ${k} secret:
 ${r.out.slice(0, 400)}`);
   }
-  if (!xaiKey && state.search) {
-    await w(["secret", "delete", "XAI_API_KEY"], { input: "y\n", quiet: true });
+  const before = state.secrets || (state.search ? ["XAI_API_KEY"] : []);
+  for (const k of before.filter((k2) => SEARCH_SECRETS.includes(k2) && !secrets[k2])) {
+    await w(["secret", "delete", k], { input: "y\n", quiet: true });
   }
-  saveState(env, { name, url, token, search: Boolean(xaiKey), deployed_at: (/* @__PURE__ */ new Date()).toISOString() });
+  const uploaded = SEARCH_SECRETS.filter((k) => secrets[k]);
+  saveState(env, { name, url, token, search: Boolean(xaiKey), secrets: uploaded, deployed_at: (/* @__PURE__ */ new Date()).toISOString() });
   out("Testing from the public URL...");
   await smokeTest(url, token, Boolean(xaiKey), out);
   out(`
@@ -1731,28 +1735,30 @@ Done. Your connector URL (the token in it is the password; keep it private):
 claude.ai (web, desktop, phone): add a custom connector with this URL; no sign-in needed.
 ChatGPT: in developer mode, create a connector with this URL and no authentication.
 Claude Code: claude mcp add --transport http x-scout ${url}/mcp --header "Authorization: Bearer ${token}"
-${xaiKey ? "x_search is on." : "x_search is off (no XAI_API_KEY). Turn it on: x-scout setup, then deploy again."}
+${xaiKey ? `x_search is on${secrets.XAI_API_BASE ? ` via ${new URL(secrets.XAI_API_BASE).host}` : ""}.` : "x_search is off (no XAI_API_KEY). Turn it on: x-scout setup, then deploy again."}
 New token: x-scout deploy --rotate · Test again: x-scout deploy --check`);
 }
-var HELP, COMPAT_DATE;
+var SEARCH_SECRETS, HELP, COMPAT_DATE;
 var init_deploy = __esm({
   "src/deploy.js"() {
     init_config();
     init_util();
     init_cli();
+    SEARCH_SECRETS = ["XAI_API_KEY", "XAI_API_BASE", "XAI_MODEL"];
     HELP = `x-scout deploy: a remote MCP server on your Cloudflare account
 
 Usage: x-scout deploy [--name x-scout] [--rotate] [--no-search] [--dry-run] [--check]
 
   --name NAME    Worker name (default x-scout); the URL is https://NAME.<you>.workers.dev
   --rotate       new connector token (the old URL stops working)
-  --no-search    do not upload XAI_API_KEY even if it is set (x_read and x_audit only)
+  --no-search    do not upload the xAI settings even if they are set (x_read and x_audit only)
   --dry-run      build and validate, upload nothing
   --check        only test the deployed server
 
 Needs Node 18+ and a Cloudflare account. Logging in opens a browser once; in CI set
 CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID) instead. x_search is enabled when
-XAI_API_KEY is set (environment or x-scout setup).`;
+XAI_API_KEY is set (environment or x-scout setup); XAI_API_BASE and XAI_MODEL go along
+when set.`;
     COMPAT_DATE = "2025-09-01";
   }
 });

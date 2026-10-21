@@ -945,9 +945,7 @@ var DEFAULT_MAX_TURNS = 2;
 var RETRY = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
 var VERIFY_LIMIT = 20;
 function searchProvider(env = {}) {
-  if (env.XAI_API_KEY) return "xai";
-  if (env.X_SEARCH_ENDPOINT && env.X_SEARCH_API_KEY) return "relay";
-  return null;
+  return env.XAI_API_KEY ? "xai" : null;
 }
 function parseSearchArgs(raw) {
   if (!raw || typeof raw !== "object") throw new InputError("arguments must be an object");
@@ -1041,7 +1039,7 @@ function xaiTool(args) {
     enable_video_understanding: args.video || void 0
   });
 }
-function parseXaiResponse(data) {
+function parseXaiResponse(data, maxResults = 20) {
   const cited = /* @__PURE__ */ new Set();
   const addUrl = (u2) => {
     const url = typeof u2 === "string" ? u2 : u2 && u2.url;
@@ -1069,15 +1067,22 @@ function parseXaiResponse(data) {
       claimed = [];
     }
   }
-  const results = claimed.map((x) => ({
-    url: str(x.url),
-    author: str(x.author),
-    published_at: str(x.date),
-    snippet: str(x.text),
-    cited: [...cited].some((u2) => statusId(u2) === statusId(x.url))
-  }));
+  const results = [];
+  const has = (url) => results.some((r) => statusId(r.url) === statusId(url));
+  for (const x of claimed) {
+    if (results.length >= maxResults) break;
+    if (has(x.url)) continue;
+    results.push({
+      url: str(x.url),
+      author: str(x.author),
+      published_at: str(x.date),
+      snippet: str(x.text),
+      cited: [...cited].some((u2) => statusId(u2) === statusId(x.url))
+    });
+  }
   for (const u2 of cited) {
-    if (!results.some((r) => statusId(r.url) === statusId(u2))) results.push({ url: u2, cited: true });
+    if (results.length >= maxResults) break;
+    if (!has(u2)) results.push({ url: u2, cited: true });
   }
   const u = data.usage || {};
   const tools = u.server_side_tool_usage_details || {};
@@ -1105,34 +1110,13 @@ async function searchXai(ctx, args, query) {
     { authorization: `Bearer ${ctx.env.XAI_API_KEY}` },
     (Number(ctx.env.SEARCH_TIMEOUT_S) || 120) * 1e3
   );
-  return parseXaiResponse(data);
-}
-async function searchRelay(ctx, args, query) {
-  const payload = prune({
-    query,
-    max_results: args.maxResults,
-    from_date: args.fromDate || void 0,
-    to_date: args.toDate || void 0,
-    allowed_x_handles: args.allowed.length ? args.allowed : void 0,
-    excluded_x_handles: args.excluded.length ? args.excluded : void 0,
-    enable_image_understanding: args.image || void 0,
-    enable_video_understanding: args.video || void 0
-  });
-  const data = await postJson(
-    ctx,
-    ctx.env.X_SEARCH_ENDPOINT,
-    payload,
-    { authorization: `Bearer ${ctx.env.X_SEARCH_API_KEY}` },
-    (Number(ctx.env.SEARCH_TIMEOUT_S) || 170) * 1e3
-  );
-  const results = (Array.isArray(data.results) ? data.results : []).filter((r) => r && statusId(r.url)).map((r) => ({ url: str(r.url), author: str(r.author), published_at: str(r.published_at), snippet: str(r.snippet), cited: true }));
-  return { results, provider_detail: data.provider };
+  return parseXaiResponse(data, args.maxResults);
 }
 async function runSearch(raw, ctx) {
   const args = parseSearchArgs(raw);
   const provider = searchProvider(ctx.env);
-  const search = provider === "xai" ? searchXai : searchRelay;
-  const settled = await Promise.allSettled(args.queries.map((q) => search(ctx, args, q)));
+  if (!provider) throw new ConfigError("x_search needs XAI_API_KEY");
+  const settled = await Promise.allSettled(args.queries.map((q) => searchXai(ctx, args, q)));
   const failures = settled.map((s, i) => s.status === "rejected" ? `query ${JSON.stringify(args.queries[i])}: ${s.reason.message}` : null).filter(Boolean);
   if (failures.length) throw new Error(failures.join("; "));
   const merged = /* @__PURE__ */ new Map();
@@ -1152,6 +1136,7 @@ async function runSearch(raw, ctx) {
   let hits = [...merged.values()];
   hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length);
   let verifiedCount = 0;
+  let notFound = 0;
   if (args.verify) {
     const toCheck = hits.slice(0, VERIFY_LIMIT);
     await mapLimit(toCheck, 5, async (h) => {
@@ -1163,9 +1148,11 @@ async function runSearch(raw, ctx) {
           verifiedCount++;
         } else {
           h.unverified = `X says the post is unavailable (${r.post && r.post.unavailable || "unknown"})`;
+          notFound++;
         }
       } catch (err) {
         h.unverified = `could not read it from X: ${err.message}`;
+        notFound++;
       }
     });
     for (const h of hits.slice(VERIFY_LIMIT)) h.unverified = `not checked (only the first ${VERIFY_LIMIT} are verified)`;
@@ -1187,7 +1174,8 @@ async function runSearch(raw, ctx) {
       to_date: args.toDate
     }),
     verified: args.verify ? verifiedCount : void 0,
-    unverified: args.verify ? hits.length - verifiedCount : void 0,
+    unverified: args.verify ? notFound : void 0,
+    unchecked: args.verify ? Math.max(0, hits.length - VERIFY_LIMIT) : void 0,
     unexpected_authors: unexpected,
     results: hits.map(
       (h) => prune({
@@ -1205,7 +1193,7 @@ async function runSearch(raw, ctx) {
 function renderSearch(r) {
   const head = [
     `${r.results.length} posts from ${r.rounds.length} queries (${r.provider})`,
-    r.verified !== void 0 ? `${r.verified} confirmed on X, ${r.unverified} not` : "not verified"
+    r.verified === void 0 ? "not verified" : [`${r.verified} confirmed on X`, r.unverified ? `${r.unverified} not found on X` : "", r.unchecked ? `${r.unchecked} not checked (only the first ${VERIFY_LIMIT} are)` : ""].filter(Boolean).join(", ")
   ];
   const lines = [head.join(" · ")];
   for (const q of r.rounds) {

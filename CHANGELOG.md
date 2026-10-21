@@ -13,7 +13,7 @@ First release.
 - `x_search`: 2-5 queries through xAI's `x_search` tool, merged by post, then every hit
   re-read from X. Text, author, time and counts come from X; hits that cannot be confirmed
   are kept as unverified leads. Inclusive date range, handle filters, cost cap per query,
-  posts-fetched report. A relay protocol for self-hosted search services.
+  posts-fetched report. `XAI_API_BASE` points it at any endpoint that speaks xAI's Responses API.
 - `x_audit`: account numbers from two timelines (originals for the baseline, with replies for
   the mix): cadence, median and p90 views, likes per 1k followers, save and talk ratios,
   link-out share, breakout, top posts by views and by saves, and hints.

@@ -1,6 +1,9 @@
 // `x-scout deploy`: put the MCP server on Cloudflare Workers (free plan is enough) so
 // claude.ai, ChatGPT and phone apps can use it as a remote connector.
 //
+// Search settings that travel with the deploy: XAI_API_KEY, and XAI_API_BASE / XAI_MODEL if set.
+export const SEARCH_SECRETS = ["XAI_API_KEY", "XAI_API_BASE", "XAI_MODEL"];
+
 // Steps: find wrangler (or fetch it with npx) → make sure you are logged in → write a
 // wrangler config next to the saved state → deploy → upload secrets through stdin →
 // smoke-test from the public URL → print the connector URL. Re-running keeps the same token.
@@ -20,13 +23,14 @@ Usage: x-scout deploy [--name x-scout] [--rotate] [--no-search] [--dry-run] [--c
 
   --name NAME    Worker name (default x-scout); the URL is https://NAME.<you>.workers.dev
   --rotate       new connector token (the old URL stops working)
-  --no-search    do not upload XAI_API_KEY even if it is set (x_read and x_audit only)
+  --no-search    do not upload the xAI settings even if they are set (x_read and x_audit only)
   --dry-run      build and validate, upload nothing
   --check        only test the deployed server
 
 Needs Node 18+ and a Cloudflare account. Logging in opens a browser once; in CI set
 CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID) instead. x_search is enabled when
-XAI_API_KEY is set (environment or x-scout setup).`;
+XAI_API_KEY is set (environment or x-scout setup); XAI_API_BASE and XAI_MODEL go along
+when set.`;
 
 const COMPAT_DATE = "2025-09-01";
 
@@ -183,15 +187,18 @@ export async function deploy(argv, env, out) {
 
   out("Uploading secrets...");
   const secrets = { MCP_TOKEN: token };
-  if (xaiKey) secrets.XAI_API_KEY = xaiKey;
+  if (xaiKey) for (const k of SEARCH_SECRETS) if (env[k]) secrets[k] = env[k];
   for (const [k, v] of Object.entries(secrets)) {
     const r = await w(["secret", "put", k], { input: v, quiet: true });
     if (r.code !== 0) throw new Error(`could not set the ${k} secret:\n${r.out.slice(0, 400)}`);
   }
-  if (!xaiKey && state.search) {
-    await w(["secret", "delete", "XAI_API_KEY"], { input: "y\n", quiet: true });
+  // Settings uploaded last time but not now (older state files only knew XAI_API_KEY).
+  const before = state.secrets || (state.search ? ["XAI_API_KEY"] : []);
+  for (const k of before.filter((k) => SEARCH_SECRETS.includes(k) && !secrets[k])) {
+    await w(["secret", "delete", k], { input: "y\n", quiet: true });
   }
-  saveState(env, { name, url, token, search: Boolean(xaiKey), deployed_at: new Date().toISOString() });
+  const uploaded = SEARCH_SECRETS.filter((k) => secrets[k]);
+  saveState(env, { name, url, token, search: Boolean(xaiKey), secrets: uploaded, deployed_at: new Date().toISOString() });
 
   out("Testing from the public URL...");
   await smokeTest(url, token, Boolean(xaiKey), out);
@@ -204,6 +211,6 @@ Done. Your connector URL (the token in it is the password; keep it private):
 claude.ai (web, desktop, phone): add a custom connector with this URL; no sign-in needed.
 ChatGPT: in developer mode, create a connector with this URL and no authentication.
 Claude Code: claude mcp add --transport http x-scout ${url}/mcp --header "Authorization: Bearer ${token}"
-${xaiKey ? "x_search is on." : "x_search is off (no XAI_API_KEY). Turn it on: x-scout setup, then deploy again."}
+${xaiKey ? `x_search is on${secrets.XAI_API_BASE ? ` via ${new URL(secrets.XAI_API_BASE).host}` : ""}.` : "x_search is off (no XAI_API_KEY). Turn it on: x-scout setup, then deploy again."}
 New token: x-scout deploy --rotate · Test again: x-scout deploy --check`);
 }

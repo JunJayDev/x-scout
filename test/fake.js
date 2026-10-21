@@ -1,4 +1,4 @@
-// A fake network for offline tests: FxTwitter, vxTwitter, the X embed endpoint, xAI and a relay.
+// A fake network for offline tests: FxTwitter, vxTwitter, the X embed endpoint and xAI.
 // Every request is recorded in `calls`.
 
 export const ENV = {
@@ -142,6 +142,7 @@ export function makeFetch(overrides = {}) {
       if (init.headers.authorization !== "Bearer xai-test-key") return json(401, { error: "bad key" });
       const prompt = body.input[0].content;
       if (prompt.includes("always429")) return json(429, { error: "rate limited" });
+      if (prompt.includes("redirect")) return new Response(null, { status: 302, headers: { location: "https://moved.test/v1/responses" } });
       if (prompt.includes("flaky")) {
         const n = (flaky.get(prompt) || 0) + 1;
         flaky.set(prompt, n);
@@ -162,14 +163,6 @@ export function makeFetch(overrides = {}) {
         citations: ["https://x.com/i/status/1", "https://x.com/i/user/55"],
         usage: { input_tokens: 1200, output_tokens: 300, server_side_tool_usage_details: { x_posts_fetched: 25, x_users_fetched: 0 } },
       });
-    }
-    if (url.host === "relay.test" && p === "/v1/x_search") {
-      if (init.headers.authorization !== "Bearer relay-key") return json(401, { error: "bad key" });
-      if (body.query.includes("redirect")) return new Response(null, { status: 302, headers: { location: "https://moved.test/v1/x_search" } });
-      return json(200, { provider: "grok-native", results: [
-        { url: "https://x.com/alice/status/1", author: "@alice", published_at: "2026-10-13T08:00:00Z", snippet: "post 1" },
-        { url: "https://x.com/i/status/12", author: "", published_at: "", snippet: "" },
-      ] });
     }
     return json(404, { error: `no fake for ${url}` });
   }

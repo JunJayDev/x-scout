@@ -5,7 +5,6 @@ import { dayAfter, parseXaiResponse, renderSearch, runSearch, searchProvider } f
 import { ENV, makeFetch } from "./fake.js";
 
 const XAI = { ...ENV, XAI_API_KEY: "xai-test-key" };
-const RELAY = { ...ENV, X_SEARCH_ENDPOINT: "https://relay.test/v1/x_search", X_SEARCH_API_KEY: "relay-key" };
 
 function ctxWith(env, fake = makeFetch()) {
   const ctx = makeContext(env, fake.fetch);
@@ -16,8 +15,6 @@ function ctxWith(env, fake = makeFetch()) {
 test("provider selection", () => {
   assert.equal(searchProvider({}), null);
   assert.equal(searchProvider(XAI), "xai");
-  assert.equal(searchProvider(RELAY), "relay");
-  assert.equal(searchProvider({ ...RELAY, XAI_API_KEY: "k" }), "xai");
 });
 
 test("input validation", async () => {
@@ -62,7 +59,8 @@ test("xai: merge, verify against X, keep unverified leads", async () => {
   assert.equal(r.verified, r.results.length - 1);
   assert.equal(r.rounds[0].usage.posts_fetched, 25);
   const text = renderSearch(r);
-  assert.match(text, /confirmed on X, 1 not/);
+  assert.match(text, /confirmed on X, 1 not found on X/);
+  assert.doesNotMatch(text, /not checked/);
   assert.match(text, /UNVERIFIED https:\/\/x\.com\/ghost\/status\/404/);
   assert.match(text, /search model's text \(may be wrong\): invented/);
   assert.match(text, /25 posts fetched by the search model/);
@@ -81,6 +79,19 @@ test("xai: response parsing ignores user links and prose", () => {
   assert.deepEqual(parseXaiResponse({ output: [] }).results, []);
 });
 
+test("xai: citations (every post the tool looked at) only fill up to max_results", () => {
+  const picked = [5, 6, 5].map((id) => ({ url: `https://x.com/a/status/${id}`, author: "@a" }));
+  const citations = Array.from({ length: 60 }, (_, i) => `https://x.com/i/status/${100 + i}`);
+  const p = parseXaiResponse({ output_text: JSON.stringify(picked), citations }, 4);
+  assert.deepEqual(p.results.map((r) => r.url), ["https://x.com/a/status/5", "https://x.com/a/status/6", "https://x.com/i/status/100", "https://x.com/i/status/101"]);
+  assert.equal(parseXaiResponse({ output_text: JSON.stringify(picked), citations }, 1).results.length, 1);
+});
+
+test("only the first 20 hits are read from X; the rest are counted as not checked", () => {
+  const text = renderSearch({ provider: "xai", rounds: [], verified: 18, unverified: 2, unchecked: 7, results: [] });
+  assert.match(text, /18 confirmed on X, 2 not found on X, 7 not checked \(only the first 20 are\)/);
+});
+
 test("verify=false skips reading X", async () => {
   const { ctx, fake } = ctxWith(XAI);
   const r = await runSearch({ queries: ["alpha", "beta"], verify: false }, ctx);
@@ -89,12 +100,10 @@ test("verify=false skips reading X", async () => {
   assert.match(renderSearch(r), /not verified/);
 });
 
-test("relay provider, unexpected authors, redirects", async () => {
-  const { ctx, fake } = ctxWith(RELAY);
-  const r = await runSearch({ queries: ["a", "b"], allowed_x_handles: ["bob"] }, ctx);
-  const call = fake.calls.find((c) => c.url === "https://relay.test/v1/x_search");
-  assert.deepEqual(call.body, { query: "a", max_results: 10, allowed_x_handles: ["bob"] });
-  assert.equal(r.provider, "relay");
-  assert.deepEqual(r.unexpected_authors, ["@alice"]);
+test("unexpected authors, redirects, no key", async () => {
+  const { ctx } = ctxWith(XAI);
+  const r = await runSearch({ queries: ["beta one", "beta two"], allowed_x_handles: ["bob"] }, ctx);
+  assert.ok(r.unexpected_authors.includes("@alice"));
   await assert.rejects(runSearch({ queries: ["redirect me", "b"] }, ctx), /redirected to https:\/\/moved\.test/);
+  await assert.rejects(runSearch({ queries: ["a", "b"] }, ctxWith(ENV).ctx), /needs XAI_API_KEY/);
 });

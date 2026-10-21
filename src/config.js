@@ -7,7 +7,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-export const CONFIG_KEYS = ["XAI_API_KEY", "XAI_MODEL", "X_SEARCH_ENDPOINT", "X_SEARCH_API_KEY"];
+export const CONFIG_KEYS = ["XAI_API_KEY", "XAI_MODEL", "XAI_API_BASE"];
 
 export function configDir(env = process.env) {
   return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "x-scout");

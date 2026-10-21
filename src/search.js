@@ -5,13 +5,10 @@
 // each post is re-read from X (read.js) and the verbatim text, author, time and metrics come
 // from there. Hits that cannot be confirmed stay in the result, marked unverified.
 //
-// Providers:
-//   xai    XAI_API_KEY (default)  POST https://api.x.ai/v1/responses with the x_search tool
-//   relay  X_SEARCH_ENDPOINT + X_SEARCH_API_KEY: a service that takes {query, max_results,
-//          from_date, to_date, allowed_x_handles, ...} and returns {provider, results:[{url,
-//          author, published_at, snippet}]} (documented in references/relay-protocol.md)
+// XAI_API_KEY turns it on: POST <XAI_API_BASE>/responses with the x_search tool. XAI_API_BASE
+// defaults to https://api.x.ai/v1; set it for any endpoint that speaks xAI's Responses API.
 
-import { InputError, cleanHandles, compact, exactDate, mapLimit, prune, sleep, str } from "./util.js";
+import { ConfigError, InputError, cleanHandles, compact, exactDate, mapLimit, prune, sleep, str } from "./util.js";
 import { readPost, statusId } from "./read.js";
 import { renderPost } from "./render.js";
 
@@ -22,9 +19,7 @@ const RETRY = new Set([429, 500, 502, 503, 504]);
 const VERIFY_LIMIT = 20;
 
 export function searchProvider(env = {}) {
-  if (env.XAI_API_KEY) return "xai";
-  if (env.X_SEARCH_ENDPOINT && env.X_SEARCH_API_KEY) return "relay";
-  return null;
+  return env.XAI_API_KEY ? "xai" : null;
 }
 
 export function parseSearchArgs(raw) {
@@ -127,8 +122,12 @@ function xaiTool(args) {
   });
 }
 
-/** Pull post URLs out of an xAI Responses API reply: citations, annotations, and the model's JSON. */
-export function parseXaiResponse(data) {
+/**
+ * Pull post URLs out of an xAI Responses API reply: the model's JSON first, then citations and
+ * annotations. Citations list every post the tool looked at (often dozens), so they only fill
+ * up to `maxResults` when the model picked fewer.
+ */
+export function parseXaiResponse(data, maxResults = 20) {
   const cited = new Set();
   const addUrl = (u) => {
     const url = typeof u === "string" ? u : u && u.url;
@@ -156,16 +155,23 @@ export function parseXaiResponse(data) {
       claimed = [];
     }
   }
-  const results = claimed.map((x) => ({
-    url: str(x.url),
-    author: str(x.author),
-    published_at: str(x.date),
-    snippet: str(x.text),
-    cited: [...cited].some((u) => statusId(u) === statusId(x.url)),
-  }));
-  // Cited by the tool but missing from the JSON: keep them as leads too.
+  const results = [];
+  const has = (url) => results.some((r) => statusId(r.url) === statusId(url));
+  for (const x of claimed) {
+    if (results.length >= maxResults) break;
+    if (has(x.url)) continue;
+    results.push({
+      url: str(x.url),
+      author: str(x.author),
+      published_at: str(x.date),
+      snippet: str(x.text),
+      cited: [...cited].some((u) => statusId(u) === statusId(x.url)),
+    });
+  }
+  // Cited by the tool but missing from the JSON: leads, while there is room.
   for (const u of cited) {
-    if (!results.some((r) => statusId(r.url) === statusId(u))) results.push({ url: u, cited: true });
+    if (results.length >= maxResults) break;
+    if (!has(u)) results.push({ url: u, cited: true });
   }
   const u = data.usage || {};
   const tools = u.server_side_tool_usage_details || {};
@@ -194,33 +200,7 @@ async function searchXai(ctx, args, query) {
     { authorization: `Bearer ${ctx.env.XAI_API_KEY}` },
     (Number(ctx.env.SEARCH_TIMEOUT_S) || 120) * 1000
   );
-  return parseXaiResponse(data);
-}
-
-// --- relay -----------------------------------------------------------------------------------
-
-async function searchRelay(ctx, args, query) {
-  const payload = prune({
-    query,
-    max_results: args.maxResults,
-    from_date: args.fromDate || undefined,
-    to_date: args.toDate || undefined,
-    allowed_x_handles: args.allowed.length ? args.allowed : undefined,
-    excluded_x_handles: args.excluded.length ? args.excluded : undefined,
-    enable_image_understanding: args.image || undefined,
-    enable_video_understanding: args.video || undefined,
-  });
-  const data = await postJson(
-    ctx,
-    ctx.env.X_SEARCH_ENDPOINT,
-    payload,
-    { authorization: `Bearer ${ctx.env.X_SEARCH_API_KEY}` },
-    (Number(ctx.env.SEARCH_TIMEOUT_S) || 170) * 1000
-  );
-  const results = (Array.isArray(data.results) ? data.results : [])
-    .filter((r) => r && statusId(r.url))
-    .map((r) => ({ url: str(r.url), author: str(r.author), published_at: str(r.published_at), snippet: str(r.snippet), cited: true }));
-  return { results, provider_detail: data.provider };
+  return parseXaiResponse(data, args.maxResults);
 }
 
 // --- run -------------------------------------------------------------------------------------
@@ -228,10 +208,10 @@ async function searchRelay(ctx, args, query) {
 export async function runSearch(raw, ctx) {
   const args = parseSearchArgs(raw);
   const provider = searchProvider(ctx.env);
-  const search = provider === "xai" ? searchXai : searchRelay;
+  if (!provider) throw new ConfigError("x_search needs XAI_API_KEY");
 
   // Queries run in parallel. One failed query fails the call: a partial answer would look complete.
-  const settled = await Promise.allSettled(args.queries.map((q) => search(ctx, args, q)));
+  const settled = await Promise.allSettled(args.queries.map((q) => searchXai(ctx, args, q)));
   const failures = settled.map((s, i) => (s.status === "rejected" ? `query ${JSON.stringify(args.queries[i])}: ${s.reason.message}` : null)).filter(Boolean);
   if (failures.length) throw new Error(failures.join("; "));
 
@@ -255,6 +235,7 @@ export async function runSearch(raw, ctx) {
   hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length);
 
   let verifiedCount = 0;
+  let notFound = 0;
   if (args.verify) {
     const toCheck = hits.slice(0, VERIFY_LIMIT);
     await mapLimit(toCheck, 5, async (h) => {
@@ -266,9 +247,11 @@ export async function runSearch(raw, ctx) {
           verifiedCount++;
         } else {
           h.unverified = `X says the post is unavailable (${(r.post && r.post.unavailable) || "unknown"})`;
+          notFound++;
         }
       } catch (err) {
         h.unverified = `could not read it from X: ${err.message}`;
+        notFound++;
       }
     });
     for (const h of hits.slice(VERIFY_LIMIT)) h.unverified = `not checked (only the first ${VERIFY_LIMIT} are verified)`;
@@ -294,7 +277,8 @@ export async function runSearch(raw, ctx) {
       to_date: args.toDate,
     }),
     verified: args.verify ? verifiedCount : undefined,
-    unverified: args.verify ? hits.length - verifiedCount : undefined,
+    unverified: args.verify ? notFound : undefined,
+    unchecked: args.verify ? Math.max(0, hits.length - VERIFY_LIMIT) : undefined,
     unexpected_authors: unexpected,
     results: hits.map((h) =>
       prune({
@@ -313,7 +297,9 @@ export async function runSearch(raw, ctx) {
 export function renderSearch(r) {
   const head = [
     `${r.results.length} posts from ${r.rounds.length} queries (${r.provider})`,
-    r.verified !== undefined ? `${r.verified} confirmed on X, ${r.unverified} not` : "not verified",
+    r.verified === undefined
+      ? "not verified"
+      : [`${r.verified} confirmed on X`, r.unverified ? `${r.unverified} not found on X` : "", r.unchecked ? `${r.unchecked} not checked (only the first ${VERIFY_LIMIT} are)` : ""].filter(Boolean).join(", "),
   ];
   const lines = [head.join(" · ")];
   for (const q of r.rounds) {

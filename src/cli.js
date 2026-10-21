@@ -11,17 +11,19 @@ const HELP = `x-scout ${VERSION}: read, search and judge X (Twitter) from any ag
 Usage
   x-scout read <url|id|@handle>...   posts, threads, replies, profiles, X Articles
       --thread | --replies [--max-replies N] [--by-recency]
-      --posts N [--with-replies]           recent posts for profiles (default 20)
+      --posts N [--with-replies]      recent posts for profiles (default 20)
       --translate <lang>  --source <fxtwitter|vxtwitter|syndication>
   x-scout search "<query>" "<query>"... [--from YYYY-MM-DD] [--to YYYY-MM-DD]
       [--handle h]... [--exclude h]... [--max N] [--images] [--videos] [--no-verify]
-                                           needs XAI_API_KEY (x-scout setup)
+                                      needs XAI_API_KEY (x-scout setup)
   x-scout audit <@handle|url> [--posts N]
   x-scout mcp                         run as a local MCP server (stdio)
-  x-scout setup                       save your xAI API key (prompt, or stdin)
+  x-scout setup [--base-url URL] [--model M]
+                                      save your xAI API key (prompt, or stdin); --base-url
+                                      for an endpoint that speaks xAI's API
   x-scout doctor                      check keys and every X source
   x-scout deploy [options]            put a remote MCP server on Cloudflare Workers
-                                           (see: x-scout deploy --help)
+                                      (see: x-scout deploy --help)
 Common
   --json      full JSON instead of compact text
   --version, --help
@@ -131,13 +133,20 @@ export async function main(argv = process.argv.slice(2), out = (s) => process.st
       return serveStdio(loadEnv());
     }
     case "setup": {
+      const { flags } = parseArgv(rest);
+      const base = flags["base-url"];
+      if (base !== undefined && base !== "" && !/^https:\/\/[^\s/]+/.test(base)) throw new InputError("--base-url must be an https:// URL, such as https://api.x.ai/v1");
       const key = process.stdin.isTTY
         ? await promptHidden("xAI API key (https://console.x.ai; empty to skip x_search): ")
         : await readStdin();
       if (!key) return out(`No key saved. x_read and x_audit work without one.`);
-      if (!/^xai-[A-Za-z0-9_-]{10,}$/.test(key)) process.stderr.write("warning: xAI keys usually start with 'xai-'\n");
+      if (!base && !/^xai-[A-Za-z0-9_-]{10,}$/.test(key)) process.stderr.write("warning: xAI keys usually start with 'xai-'\n");
       const path = writeConfigValue("XAI_API_KEY", key);
-      return out(`Saved XAI_API_KEY to ${path} (mode 600). Check it with: x-scout doctor`);
+      // --base-url "" and --model "" remove a saved value.
+      if (base !== undefined) writeConfigValue("XAI_API_BASE", base);
+      if (flags.model !== undefined) writeConfigValue("XAI_MODEL", flags.model);
+      const extra = [base ? `XAI_API_BASE=${base}` : "", flags.model ? `XAI_MODEL=${flags.model}` : ""].filter(Boolean).join(", ");
+      return out(`Saved XAI_API_KEY${extra ? ` and ${extra}` : ""} to ${path} (mode 600). Check it with: x-scout doctor`);
     }
     case "doctor": {
       const { doctor } = await import("./doctor.js");
