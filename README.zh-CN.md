@@ -58,18 +58,18 @@ Claude Code 低于 2.1.275 时：先运行 `/plugin marketplace add JunJayDev/x-
 **任意 MCP 客户端**（Codex、Cursor、Claude Desktop、不装插件的 Claude Code 等）
 
 ```bash
-claude mcp add x-scout -- npx -y x-scout mcp      # Claude Code
-codex mcp add x-scout -- npx -y x-scout mcp       # Codex
+claude mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp      # Claude Code
+codex mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp       # Codex
 ```
 
-其他客户端：命令填 `npx`，参数填 `-y x-scout mcp`。需要 Node 18 或更新版本。
+其他客户端：命令填 `npx`，参数填 `-y github:JunJayDev/x-scout mcp`。需要 Node 18 或更新版本。
 
 **只装 skill。** 把 [`skills/x-scout/`](skills/x-scout/) 复制到 agent 的 skills 目录（`~/.claude/skills/`、`.agents/skills/` 等）。这个目录是自包含的：agent 在其中运行 `node scripts/x-scout.mjs <命令>`，不需要安装任何东西。
 
 **claude.ai、ChatGPT、手机**（部署在你自己 Cloudflare 账号上的远程 MCP 服务器，免费套餐即可）
 
 ```bash
-npx -y x-scout deploy
+npx -y github:JunJayDev/x-scout deploy
 ```
 
 这条命令会登录 Cloudflare（只在第一次打开浏览器），部署 Worker，通过 stdin 上传密钥，从公网地址测试服务器，最后打印连接器地址。在 claude.ai 中把它添加为自定义连接器，或在 ChatGPT 的开发者模式中添加为连接器，不需要登录。在网页端添加的连接器，手机 App 里也能用。`--rotate` 生成新地址；`--check` 重新测试。
@@ -77,13 +77,15 @@ npx -y x-scout deploy
 **开启搜索**（可选）：在 [console.x.ai](https://console.x.ai) 申请 API key，然后运行：
 
 ```bash
-npx -y x-scout setup      # 保存到 ~/.config/x-scout/config.env（权限 600）
-npx -y x-scout doctor     # 检查 key 和每个读取数据源
+npx -y github:JunJayDev/x-scout setup      # 保存到 ~/.config/x-scout/config.env（权限 600）
+npx -y github:JunJayDev/x-scout doctor     # 检查 key 和每个读取数据源
 ```
 
 也可以在环境变量中设置 `XAI_API_KEY`。要让远程服务器也能搜索，再运行一次 `deploy`。
 
 ## 快速上手
+
+用 `npm install -g github:JunJayDev/x-scout` 安装命令，或者把下面的 `x-scout` 换成 `npx -y github:JunJayDev/x-scout`。
 
 ```bash
 x-scout read https://x.com/karpathy/status/2039805659525644595
@@ -146,6 +148,8 @@ skill 的流程：先想清楚谁会有第一手信息；按好帖子的写法�
 - 判断是给 agent 的方法，不是分类器，可能出错。遇到这种情况请用 [判断问题模板](.github/ISSUE_TEMPLATE/judging.md) 提交。
 
 ## 作为库使用
+
+先运行 `npm install github:JunJayDev/x-scout`，然后：
 
 ```js
 import { makeContext, runRead, runAudit } from "x-scout";

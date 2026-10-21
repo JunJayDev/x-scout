@@ -90,11 +90,11 @@ x-scout from the plugin list. For the tools, add the MCP server below.
 **Any MCP client** (Codex, Cursor, Claude Desktop, Claude Code without the plugin...)
 
 ```bash
-claude mcp add x-scout -- npx -y x-scout mcp      # Claude Code
-codex mcp add x-scout -- npx -y x-scout mcp       # Codex
+claude mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp      # Claude Code
+codex mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp       # Codex
 ```
 
-Other clients: command `npx`, arguments `-y x-scout mcp`. Requires Node 18 or newer.
+Other clients: command `npx`, arguments `-y github:JunJayDev/x-scout mcp`. Requires Node 18 or newer.
 
 **Skill only.** Copy [`skills/x-scout/`](skills/x-scout/) into your agent's skills
 folder (`~/.claude/skills/`, `.agents/skills/`...). It is self-contained: the agent runs
@@ -104,7 +104,7 @@ folder (`~/.claude/skills/`, `.agents/skills/`...). It is self-contained: the ag
 is enough)
 
 ```bash
-npx -y x-scout deploy
+npx -y github:JunJayDev/x-scout deploy
 ```
 
 It logs you in to Cloudflare (a browser opens once), deploys, uploads secrets through stdin,
@@ -115,13 +115,16 @@ added on the web work in the mobile apps too. `--rotate` issues a new URL; `--ch
 **Turn on search** (optional): get an API key at [console.x.ai](https://console.x.ai), then
 
 ```bash
-npx -y x-scout setup      # saves it to ~/.config/x-scout/config.env (mode 600)
-npx -y x-scout doctor     # checks the key and every read source
+npx -y github:JunJayDev/x-scout setup      # saves it to ~/.config/x-scout/config.env (mode 600)
+npx -y github:JunJayDev/x-scout doctor     # checks the key and every read source
 ```
 
 Or set `XAI_API_KEY` in the environment. Run `deploy` again to give the remote server the key.
 
 ## Quick start
+
+Install the command with `npm install -g github:JunJayDev/x-scout`, or write
+`npx -y github:JunJayDev/x-scout` in place of `x-scout`.
 
 ```bash
 x-scout read https://x.com/karpathy/status/2039805659525644595
@@ -194,6 +197,8 @@ for what X's code is known to reward, and says so when a draft is bait.
   [judging issue template](.github/ISSUE_TEMPLATE/judging.md) is for those cases.
 
 ## Library
+
+`npm install github:JunJayDev/x-scout`, then
 
 ```js
 import { makeContext, runRead, runAudit } from "x-scout";
