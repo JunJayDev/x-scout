@@ -2,7 +2,7 @@
 
 // src/util.js
 var VERSION = "0.1.0";
-var HOMEPAGE = "https://github.com/signal-first/signal-first";
+var HOMEPAGE = "https://github.com/JunJayDev/x-scout";
 var InputError = class extends Error {
 };
 var ConfigError = class extends Error {
@@ -11,7 +11,7 @@ var sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function makeContext(env = {}, fetchImpl) {
   if (!fetchImpl && typeof globalThis.fetch !== "function") throw new Error("no fetch available: use Node 18 or newer");
   const f = fetchImpl || ((input, init) => globalThis.fetch(input, init));
-  return { env: env || {}, fetch: f, userAgent: `signal-first/${VERSION} (+${HOMEPAGE})` };
+  return { env: env || {}, fetch: f, userAgent: `x-scout/${VERSION} (+${HOMEPAGE})` };
 }
 function prune(obj) {
   for (const k of Object.keys(obj)) {
@@ -1231,7 +1231,7 @@ function renderSearch(r) {
 }
 
 // src/mcp.js
-var SERVER_INFO = { name: "signal-first", title: "signal-first (X for agents)", version: VERSION };
+var SERVER_INFO = { name: "x-scout", title: "x-scout (X for agents)", version: VERSION };
 var PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 var FORMAT = {
   type: "string",
@@ -1309,7 +1309,7 @@ var X_SEARCH_TOOL = {
 };
 function instructions(ctx) {
   const search = searchProvider(ctx.env) ? "x_search finds posts by meaning (2-5 different queries) and checks every hit against X." : "x_search is off: set XAI_API_KEY (an xAI API key) where this server runs to turn it on.";
-  return "signal-first lets you read, search and judge X (Twitter). Web fetch cannot open x.com links: use x_read for every X post or profile link. " + search + " Before you trust, cite or recommend an account, run x_audit and read its top posts. Judge information value (original, first-hand, specific, checkable, useful) and reach (views, spread) separately: a post can travel far and say nothing.";
+  return "x-scout lets you read, search and judge X (Twitter). Web fetch cannot open x.com links: use x_read for every X post or profile link. " + search + " Before you trust, cite or recommend an account, run x_audit and read its top posts. Judge information value (original, first-hand, specific, checkable, useful) and reach (views, spread) separately: a post can travel far and say nothing.";
 }
 function listTools(ctx) {
   return searchProvider(ctx.env) ? [X_READ_TOOL, X_SEARCH_TOOL, X_AUDIT_TOOL] : [X_READ_TOOL, X_AUDIT_TOOL];
@@ -1388,7 +1388,7 @@ async function handleHttp(request, env, fetchImpl) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
   if (path === "/") {
-    return new Response("signal-first MCP server. POST JSON-RPC to /mcp.\n", { headers: { "content-type": "text/plain" } });
+    return new Response("x-scout MCP server. POST JSON-RPC to /mcp.\n", { headers: { "content-type": "text/plain" } });
   }
   const match = path.match(/^\/mcp(?:\/([A-Za-z0-9_-]+))?$/);
   if (!match) return new Response("Not found\n", { status: 404 });

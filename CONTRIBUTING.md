@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. signal-first stays small on purpose: one skill, one dependency-free
+Thanks for helping. x-scout stays small on purpose: one skill, one dependency-free
 JavaScript code base that runs on Node and Cloudflare Workers, and plain-text references.
 
 ## Ground rules
@@ -22,8 +22,8 @@ JavaScript code base that runs on Node and Cloudflare Workers, and plain-text re
 ```bash
 npm install                 # dev tools only: esbuild, wrangler
 node --test                 # offline; uses the fake network in test/fake.js
-npm run build               # rebuild the bundles in skills/signal-first/scripts/
-node bin/signal-first.js doctor
+npm run build               # rebuild the bundles in skills/x-scout/scripts/
+node bin/x-scout.js doctor
 npx wrangler dev src/worker.js   # local Worker (needs MCP_TOKEN in .dev.vars)
 ```
 
@@ -37,5 +37,5 @@ accounts in the pull request. Thresholds are judged on real accounts, not on tas
 
 - More read sources with a clear fallback story.
 - Better hints in `x_audit`, with evidence that they separate good accounts from noise.
-- Judging guides for other languages in `skills/signal-first/references/`.
+- Judging guides for other languages in `skills/x-scout/references/`.
 - Install notes for more agent harnesses.

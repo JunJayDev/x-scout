@@ -1,11 +1,11 @@
 {
-  "name": "signal-first",
+  "name": "x-scout",
   "interface": {
-    "displayName": "signal-first"
+    "displayName": "x-scout"
   },
   "plugins": [
     {
-      "name": "signal-first",
+      "name": "x-scout",
       "source": {
         "source": "local",
         "path": "./"

@@ -1,6 +1,6 @@
 # For local development only (npx wrangler dev). To deploy your own server, run
-# `signal-first deploy`: it writes its own config and keeps the token out of this repo.
-name = "signal-first"
+# `x-scout deploy`: it writes its own config and keeps the token out of this repo.
+name = "x-scout"
 main = "src/worker.js"
 compatibility_date = "2025-09-01"
 workers_dev = true

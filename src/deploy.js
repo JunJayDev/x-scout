@@ -1,4 +1,4 @@
-// `signal-first deploy`: put the MCP server on Cloudflare Workers (free plan is enough) so
+// `x-scout deploy`: put the MCP server on Cloudflare Workers (free plan is enough) so
 // claude.ai, ChatGPT and phone apps can use it as a remote connector.
 //
 // Steps: find wrangler (or fetch it with npx) → make sure you are logged in → write a
@@ -14,11 +14,11 @@ import { configDir } from "./config.js";
 import { InputError, sleep } from "./util.js";
 import { parseArgv } from "./cli.js";
 
-const HELP = `signal-first deploy: a remote MCP server on your Cloudflare account
+const HELP = `x-scout deploy: a remote MCP server on your Cloudflare account
 
-Usage: signal-first deploy [--name signal-first] [--rotate] [--no-search] [--dry-run] [--check]
+Usage: x-scout deploy [--name x-scout] [--rotate] [--no-search] [--dry-run] [--check]
 
-  --name NAME    Worker name (default signal-first); the URL is https://NAME.<you>.workers.dev
+  --name NAME    Worker name (default x-scout); the URL is https://NAME.<you>.workers.dev
   --rotate       new connector token (the old URL stops working)
   --no-search    do not upload XAI_API_KEY even if it is set (x_read and x_audit only)
   --dry-run      build and validate, upload nothing
@@ -26,7 +26,7 @@ Usage: signal-first deploy [--name signal-first] [--rotate] [--no-search] [--dry
 
 Needs Node 18+ and a Cloudflare account. Logging in opens a browser once; in CI set
 CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID) instead. x_search is enabled when
-XAI_API_KEY is set (environment or signal-first setup).`;
+XAI_API_KEY is set (environment or x-scout setup).`;
 
 const COMPAT_DATE = "2025-09-01";
 
@@ -134,7 +134,7 @@ async function smokeTest(base, token, withSearch, out) {
 export async function deploy(argv, env, out) {
   const { flags } = parseArgv(argv, { booleans: ["rotate", "dry-run", "check", "help"] });
   if (flags.help) return out(HELP);
-  const name = flags.name || "signal-first";
+  const name = flags.name || "x-scout";
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(name)) throw new InputError("--name: lowercase letters, digits and dashes");
 
   const state = loadState(env);
@@ -203,7 +203,7 @@ Done. Your connector URL (the token in it is the password; keep it private):
 
 claude.ai (web, desktop, phone): add a custom connector with this URL; no sign-in needed.
 ChatGPT: in developer mode, create a connector with this URL and no authentication.
-Claude Code: claude mcp add --transport http signal-first ${url}/mcp --header "Authorization: Bearer ${token}"
-${xaiKey ? "x_search is on." : "x_search is off (no XAI_API_KEY). Turn it on: signal-first setup, then deploy again."}
-New token: signal-first deploy --rotate · Test again: signal-first deploy --check`);
+Claude Code: claude mcp add --transport http x-scout ${url}/mcp --header "Authorization: Bearer ${token}"
+${xaiKey ? "x_search is on." : "x_search is off (no XAI_API_KEY). Turn it on: x-scout setup, then deploy again."}
+New token: x-scout deploy --rotate · Test again: x-scout deploy --check`);
 }

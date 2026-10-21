@@ -1,5 +1,5 @@
 {
-  "name": "signal-first",
+  "name": "x-scout",
   "version": "0.1.0",
   "description": "Read, search and judge X (Twitter): read any X link without login, search by meaning with every hit checked against X, audit accounts, and judge value and reach separately.",
   "license": "MIT",
@@ -12,22 +12,22 @@
     "skills"
   ],
   "author": {
-    "name": "signal-first contributors"
+    "name": "x-scout contributors"
   },
   "userConfig": {
     "xai_api_key": {
       "type": "string",
       "title": "xAI API key (optional)",
-      "description": "Turns on x_search. Get one at https://console.x.ai. Leave empty to read and audit only; you can also run `signal-first setup` later.",
+      "description": "Turns on x_search. Get one at https://console.x.ai. Leave empty to read and audit only; you can also run `x-scout setup` later.",
       "sensitive": true,
       "required": false
     }
   },
   "mcpServers": {
-    "signal-first": {
+    "x-scout": {
       "command": "node",
       "args": [
-        "${CLAUDE_PLUGIN_ROOT}/skills/signal-first/scripts/signal-first.mjs",
+        "${CLAUDE_PLUGIN_ROOT}/skills/x-scout/scripts/x-scout.mjs",
         "mcp"
       ],
       "env": {

@@ -25,7 +25,7 @@ export function serveStdio(env = process.env, { input = process.stdin, output = 
         const out = replies.filter(Boolean);
         if (out.length) write(Array.isArray(msg) ? out : out[0]);
       })
-      .catch((err) => process.stderr.write(`signal-first: ${err.stack || err}\n`))
+      .catch((err) => process.stderr.write(`x-scout: ${err.stack || err}\n`))
       .finally(() => pending.delete(job));
     pending.add(job);
   });

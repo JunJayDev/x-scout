@@ -3,7 +3,7 @@
 X posts are often the first public record: the maintainer's fix, the founder's numbers, the
 researcher's chart. They are also full of bait and AI slop. When a task touches X:
 
-1. Read every X link with `x_read` (or `signal-first read`). Web fetch cannot open x.com.
+1. Read every X link with `x_read` (or `x-scout read`). Web fetch cannot open x.com.
 2. Search with 2-5 queries that name concrete things (products, versions, people, numbers),
    in each relevant language. Search results are leads until re-read from X.
 3. Judge value (first-hand, specific, checkable, new, useful) and reach (views, spread)

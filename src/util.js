@@ -2,7 +2,7 @@
 // Nothing here may import a Node built-in.
 
 export const VERSION = "0.1.0";
-export const HOMEPAGE = "https://github.com/signal-first/signal-first";
+export const HOMEPAGE = "https://github.com/JunJayDev/x-scout";
 
 /** A caller mistake (bad arguments). Reported as is, never retried. */
 export class InputError extends Error {}
@@ -20,7 +20,7 @@ export function makeContext(env = {}, fetchImpl) {
   if (!fetchImpl && typeof globalThis.fetch !== "function") throw new Error("no fetch available: use Node 18 or newer");
   // Workers reject fetch called as a method of another object ("Illegal invocation").
   const f = fetchImpl || ((input, init) => globalThis.fetch(input, init));
-  return { env: env || {}, fetch: f, userAgent: `signal-first/${VERSION} (+${HOMEPAGE})` };
+  return { env: env || {}, fetch: f, userAgent: `x-scout/${VERSION} (+${HOMEPAGE})` };
 }
 
 /** Drop empty values so outputs carry only what is known. */

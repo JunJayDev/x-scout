@@ -1,6 +1,6 @@
 // Numbers that help an agent judge a post or an account. They are hints, not verdicts:
 // the agent still reads the text. The thresholds and what they mean are documented in
-// skills/signal-first/references/signals.md.
+// skills/x-scout/references/signals.md.
 
 import { InputError, clampInt, median, prune, quantile } from "./util.js";
 import { parseTarget, readAbout, readProfile } from "./read.js";

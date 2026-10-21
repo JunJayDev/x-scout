@@ -1,9 +1,9 @@
 ---
-name: signal-first
+name: x-scout
 description: Read, search and judge X (Twitter). Open any X link, find posts by meaning with every hit checked against X, tell first-hand signal from hype and AI slop, audit accounts, and check drafts before posting.
 ---
 
-# Signal first
+# x-scout
 
 On X, the people who build things often post first: the maintainer explains the bug, the
 founder shares the real numbers, the researcher posts the chart before the paper. The same
@@ -25,7 +25,7 @@ the maintainer can be the only correct answer in the thread.
 ## Tools
 
 If your harness lists the MCP tools `x_read`, `x_search` and `x_audit`, use them. Otherwise run
-the CLI from this folder (Node 18+, no install): `node scripts/signal-first.mjs <command>`.
+the CLI from this folder (Node 18+, no install): `node scripts/x-scout.mjs <command>`.
 
 | need | MCP tool | CLI |
 |---|---|---|
@@ -34,7 +34,7 @@ the CLI from this folder (Node 18+, no install): `node scripts/signal-first.mjs 
 | is this account worth it? | `x_audit` | `audit @handle` |
 
 - Reading is free and needs no key (public sources: FxTwitter, vxTwitter, X's embed endpoint).
-- `x_search` needs an xAI API key (`XAI_API_KEY`, or `signal-first setup`). xAI bills about $5
+- `x_search` needs an xAI API key (`XAI_API_KEY`, or `x-scout setup`). xAI bills about $5
   per 1,000 posts its model fetches, plus tokens; one query usually fetches a few dozen. Without
   a key, search the web with `site:x.com <names>` and read what you find with `x_read`.
 - Output is compact text. Add `format: "json"` (MCP) or `--json` (CLI) for the full structure.

@@ -18,7 +18,7 @@ test("argv parsing", () => {
 
 test("config file: written 0600, read back, env wins", () => {
   const dir = mkdtempSync(join(tmpdir(), "sf-"));
-  const env = { SIGNAL_FIRST_CONFIG: join(dir, "c", "config.env") };
+  const env = { X_SCOUT_CONFIG: join(dir, "c", "config.env") };
   const path = writeConfigValue("XAI_API_KEY", "xai-file", env);
   assert.equal(statSync(path).mode & 0o777, 0o600);
   assert.deepEqual(readConfigFile(path), { XAI_API_KEY: "xai-file" });
@@ -33,7 +33,7 @@ test("read and audit through the CLI with the fake network", async (t) => {
   const fake = makeFetch();
   t.mock.method(globalThis, "fetch", fake.fetch);
   const saved = { ...process.env };
-  Object.assign(process.env, ENV, { SIGNAL_FIRST_CONFIG: join(tmpdir(), "sf-none", "config.env") });
+  Object.assign(process.env, ENV, { X_SCOUT_CONFIG: join(tmpdir(), "xs-none", "config.env") });
   delete process.env.XAI_API_KEY;
   try {
     let out = "";

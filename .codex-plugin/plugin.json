@@ -1,5 +1,5 @@
 {
-  "name": "signal-first",
+  "name": "x-scout",
   "version": "0.1.0",
   "description": "Read, search and judge X (Twitter): read any X link without login, search by meaning with every hit checked against X, audit accounts, and judge value and reach separately.",
   "keywords": [
@@ -11,7 +11,7 @@
   ],
   "skills": "./skills",
   "interface": {
-    "displayName": "signal-first",
+    "displayName": "x-scout",
     "shortDescription": "Read, search and judge X (Twitter)"
   }
 }

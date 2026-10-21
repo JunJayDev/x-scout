@@ -7,7 +7,7 @@ import { runSearch, searchProvider } from "./search.js";
 import { renderAudit, renderRead } from "./render.js";
 import { renderSearch } from "./search.js";
 
-export const SERVER_INFO = { name: "signal-first", title: "signal-first (X for agents)", version: VERSION };
+export const SERVER_INFO = { name: "x-scout", title: "x-scout (X for agents)", version: VERSION };
 const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 
 const FORMAT = {
@@ -115,7 +115,7 @@ export function instructions(ctx) {
     ? "x_search finds posts by meaning (2-5 different queries) and checks every hit against X."
     : "x_search is off: set XAI_API_KEY (an xAI API key) where this server runs to turn it on.";
   return (
-    "signal-first lets you read, search and judge X (Twitter). Web fetch cannot open x.com links: use x_read " +
+    "x-scout lets you read, search and judge X (Twitter). Web fetch cannot open x.com links: use x_read " +
     "for every X post or profile link. " + search + " Before you trust, cite or recommend an account, run " +
     "x_audit and read its top posts. Judge information value (original, first-hand, specific, checkable, " +
     "useful) and reach (views, spread) separately: a post can travel far and say nothing."

@@ -1,6 +1,6 @@
-# signal-first
+# x-scout
 
-**Agents can't open x.com, and when they search X they find whatever is loudest. signal-first
+**Agents can't open x.com, and when they search X they find whatever is loudest. x-scout
 lets them read any X link, search X by meaning with every hit checked against X itself, and
 judge posts and accounts on value, not reach.**
 
@@ -23,13 +23,13 @@ travelled furthest as what matters, and quote search summaries as if they were t
 
 X's own open-source ranking code shows why reach and value come apart. A reply weighs 5, a
 copied link 20, a like 0.66. Bookmarks, the plainest sign that a post is worth keeping, weigh
-nothing ([details](skills/signal-first/references/x-algorithm.md)). What spreads is what makes
+nothing ([details](skills/x-scout/references/x-algorithm.md)). What spreads is what makes
 people react. What is useful is what people save.
 
 On one account, the difference looks like this:
 
 ```text
-$ signal-first audit @karpathy
+$ x-scout audit @karpathy
 @karpathy · Andrej Karpathy · verified
 4.4M followers · following 1.1k · 10k posts · joined 2009-04-21
 originals: 51 (2026-02-24 → 2026-10-11) · median views 1.4M (p90 7.8M) · save 0.61 · talk 0.05 · 31 long posts
@@ -63,48 +63,48 @@ should read the second.
   replies, then compares each post with the account's own median, not with famous accounts.
   One viral post is not a track record.
 - **Recommends, never acts.** X forbids automated likes, bulk follows and AI reply bots
-  without approval. signal-first never logs in and never touches your account. It gives you
+  without approval. x-scout never logs in and never touches your account. It gives you
   the links; you click.
 - **Written for agents to read.** Tool output is compact text: no empty fields, short numbers,
   the post text verbatim. JSON is one flag away.
 
 ## Install
 
-Pick one. An agent can do any of these for you: tell it "install signal-first, following
-https://github.com/<owner>/signal-first/blob/main/INSTALL.md". The only human steps are pasting
+Pick one. An agent can do any of these for you: tell it "install x-scout, following
+https://github.com/JunJayDev/x-scout/blob/main/INSTALL.md". The only human steps are pasting
 an xAI key (optional) and, for the remote server, clicking "Allow" on Cloudflare once.
 
 **Claude Code plugin** (skill and tools together)
 
 ```
-/plugin install signal-first --marketplace <owner>/signal-first
+/plugin install x-scout --marketplace JunJayDev/x-scout
 ```
 
-On Claude Code older than 2.1.275: `/plugin marketplace add <owner>/signal-first`, then
-`/plugin install signal-first@signal-first`. The plugin asks for an optional xAI key and keeps it
+On Claude Code older than 2.1.275: `/plugin marketplace add JunJayDev/x-scout`, then
+`/plugin install x-scout@x-scout`. The plugin asks for an optional xAI key and keeps it
 in your system keychain.
 
-**Codex plugin** (the skill): `codex plugin marketplace add <owner>/signal-first`, then install
-signal-first from the plugin list. For the tools, add the MCP server below.
+**Codex plugin** (the skill): `codex plugin marketplace add JunJayDev/x-scout`, then install
+x-scout from the plugin list. For the tools, add the MCP server below.
 
 **Any MCP client** (Codex, Cursor, Claude Desktop, Claude Code without the plugin...)
 
 ```bash
-claude mcp add signal-first -- npx -y signal-first mcp      # Claude Code
-codex mcp add signal-first -- npx -y signal-first mcp       # Codex
+claude mcp add x-scout -- npx -y x-scout mcp      # Claude Code
+codex mcp add x-scout -- npx -y x-scout mcp       # Codex
 ```
 
-Other clients: command `npx`, arguments `-y signal-first mcp`. Requires Node 18 or newer.
+Other clients: command `npx`, arguments `-y x-scout mcp`. Requires Node 18 or newer.
 
-**Skill only.** Copy [`skills/signal-first/`](skills/signal-first/) into your agent's skills
+**Skill only.** Copy [`skills/x-scout/`](skills/x-scout/) into your agent's skills
 folder (`~/.claude/skills/`, `.agents/skills/`...). It is self-contained: the agent runs
-`node scripts/signal-first.mjs <command>` from it, with nothing to install.
+`node scripts/x-scout.mjs <command>` from it, with nothing to install.
 
 **claude.ai, ChatGPT, phones** (a remote MCP server on your Cloudflare account; the free plan
 is enough)
 
 ```bash
-npx -y signal-first deploy
+npx -y x-scout deploy
 ```
 
 It logs you in to Cloudflare (a browser opens once), deploys, uploads secrets through stdin,
@@ -115,8 +115,8 @@ added on the web work in the mobile apps too. `--rotate` issues a new URL; `--ch
 **Turn on search** (optional): get an API key at [console.x.ai](https://console.x.ai), then
 
 ```bash
-npx -y signal-first setup      # saves it to ~/.config/signal-first/config.env (mode 600)
-npx -y signal-first doctor     # checks the key and every read source
+npx -y x-scout setup      # saves it to ~/.config/x-scout/config.env (mode 600)
+npx -y x-scout doctor     # checks the key and every read source
 ```
 
 Or set `XAI_API_KEY` in the environment. Run `deploy` again to give the remote server the key.
@@ -124,12 +124,12 @@ Or set `XAI_API_KEY` in the environment. Run `deploy` again to give the remote s
 ## Quick start
 
 ```bash
-signal-first read https://x.com/karpathy/status/2039805659525644595
-signal-first read <post-url> --replies --max-replies 30      # the corrections live in replies
-signal-first read @handle --posts 30
-signal-first audit @handle
-signal-first search "bun 1.3 production" "migrated from node to bun" --from 2026-09-01
-signal-first search "remotion agent" "AI 视频 剪辑 agent" --handle remotion --json
+x-scout read https://x.com/karpathy/status/2039805659525644595
+x-scout read <post-url> --replies --max-replies 30      # the corrections live in replies
+x-scout read @handle --posts 30
+x-scout audit @handle
+x-scout search "bun 1.3 production" "migrated from node to bun" --from 2026-09-01
+x-scout search "remotion agent" "AI 视频 剪辑 agent" --handle remotion --json
 ```
 
 A read looks like this:
@@ -153,7 +153,7 @@ LLM Knowledge Bases
 | `x_audit` | an account's last 10-100 posts: cadence, mix, median and p90 views, likes per 1k followers, save and talk, link-out share, breakout, top posts by views and by saves, X's "About this account", hints. | none |
 
 All three take `format: "json"` for the full structure. The skill
-([`SKILL.md`](skills/signal-first/SKILL.md)) tells the agent when to use which, how to write
+([`SKILL.md`](skills/x-scout/SKILL.md)) tells the agent when to use which, how to write
 queries, and how to judge what comes back.
 
 ## How judging works
@@ -163,10 +163,10 @@ The skill's loop: decide who would know first-hand; search the way a good post i
 and reach separately; audit the account before citing it; answer with URLs, authors and dates;
 remember verdicts in a sources file. The details are short and worth reading:
 
-- [judging.md](skills/signal-first/references/judging.md): the value sheet, the flags, verdicts for accounts.
-- [signals.md](skills/signal-first/references/signals.md): what each number means and when it lies.
-- [x-algorithm.md](skills/signal-first/references/x-algorithm.md): what X's ranking code rewards, checked file by file.
-- [x-rules.md](skills/signal-first/references/x-rules.md): what X forbids automated tools to do.
+- [judging.md](skills/x-scout/references/judging.md): the value sheet, the flags, verdicts for accounts.
+- [signals.md](skills/x-scout/references/signals.md): what each number means and when it lies.
+- [x-algorithm.md](skills/x-scout/references/x-algorithm.md): what X's ranking code rewards, checked file by file.
+- [x-rules.md](skills/x-scout/references/x-rules.md): what X forbids automated tools to do.
 
 The same judgment applies to your own drafts: the skill checks a post for value first, then
 for what X's code is known to reward, and says so when a draft is bait.
@@ -196,16 +196,16 @@ for what X's code is known to reward, and says so when a draft is bait.
 ## Library
 
 ```js
-import { makeContext, runRead, runAudit } from "signal-first";
+import { makeContext, runRead, runAudit } from "x-scout";
 const ctx = makeContext(process.env);
 const { items } = await runRead({ targets: ["https://x.com/jack/status/20"] }, ctx);
 ```
 
-`signal-first/worker` exports the Cloudflare Worker, if you want to host it yourself.
+`x-scout/worker` exports the Cloudflare Worker, if you want to host it yourself.
 
 ## Related projects
 
-Reading X for agents is a busy space. Judging what you read is not. signal-first is the one
+Reading X for agents is a busy space. Judging what you read is not. x-scout is the one
 that keeps value and reach apart, checks every search hit against X, compares accounts with
 their own baseline, and applies the same judgment to your drafts. Star counts as of 2026-10-15.
 
@@ -215,20 +215,20 @@ their own baseline, and applies the same judgment to your drafts. Star counts as
   read X (and more) for agents, with MCP servers and skills. x-md also searches without a key
   through an account pool it runs; x-reader's install guide for agents inspired [INSTALL.md](INSTALL.md).
 - [Agent-Reach](https://github.com/Panniantong/Agent-Reach): one installer for reading many
-  platforms. Its X search uses your own X cookies; signal-first never touches your account.
+  platforms. Its X search uses your own X cookies; x-scout never touches your account.
 - [twitterapi.io MCP](https://github.com/kaitoInfra/twitterapi-io-mcp-server): a paid X data
   API with read tools; a good choice when you need volume.
 - [bangermeter](https://github.com/itsryanlenk/bangermeter): scores a post's reach with X's
-  published weights, citing source lines. signal-first describes reach and scores value.
+  published weights, citing source lines. x-scout describes reach and scores value.
 - [twag](https://github.com/clifton/twag): LLM triage of tweets with capped scores (restating a
   known view caps the score) and rolling account averages.
 - [bullshit-detector](https://github.com/SerhiiKorniienko/bullshit-detector): checks a text claim
   by claim. The judging sheet borrows two of its questions: what is the author selling, and
   which claims carry the post.
 - [Bouncer](https://github.com/imbue-ai/bouncer): filters your feed with categories you write in
-  plain words. It acts on a timeline; signal-first answers questions.
+  plain words. It acts on a timeline; x-scout answers questions.
 
-Part of a series on media literacy for agents. [reuse-first](https://github.com/<owner>/reuse-first)
+Part of a series on media literacy for agents. [github-scout](https://github.com/JunJayDev/github-scout)
 does the same for GitHub: before an agent builds something, it finds what open source already
 solved.
 

@@ -1,4 +1,4 @@
-// `signal-first doctor`: is everything this machine needs in place? Costs nothing:
+// `x-scout doctor`: is everything this machine needs in place? Costs nothing:
 // reading uses free public sources, and the xAI check asks for key metadata, not a search.
 
 import { makeContext } from "./util.js";
@@ -49,6 +49,6 @@ export async function doctor(env, out, { configFile } = {}) {
   } else if (provider === "relay") {
     out(`ok    search via relay ${new URL(env.X_SEARCH_ENDPOINT).host} (not tested: a test search costs money)`);
   } else {
-    out(`off   x_search: no XAI_API_KEY. Run: signal-first setup${configFile ? ` (saves to ${configFile})` : ""}`);
+    out(`off   x_search: no XAI_API_KEY. Run: x-scout setup${configFile ? ` (saves to ${configFile})` : ""}`);
   }
 }

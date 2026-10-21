@@ -21,7 +21,7 @@ export async function handleHttp(request, env, fetchImpl) {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/+$/, "") || "/";
   if (path === "/") {
-    return new Response("signal-first MCP server. POST JSON-RPC to /mcp.\n", { headers: { "content-type": "text/plain" } });
+    return new Response("x-scout MCP server. POST JSON-RPC to /mcp.\n", { headers: { "content-type": "text/plain" } });
   }
   const match = path.match(/^\/mcp(?:\/([A-Za-z0-9_-]+))?$/);
   if (!match) return new Response("Not found\n", { status: 404 });

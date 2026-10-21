@@ -9,6 +9,6 @@ about: Something returned wrong data or failed
 
 **What you expected:**
 
-**`signal-first doctor` output:**
+**`x-scout doctor` output:**
 
 **Where it runs:** CLI / local MCP (which client) / Cloudflare Worker

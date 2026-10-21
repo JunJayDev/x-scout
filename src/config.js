@@ -1,6 +1,6 @@
 // Local configuration for the CLI and the stdio server (Node only).
 // Environment variables win; otherwise keys come from
-//   $SIGNAL_FIRST_CONFIG, or $XDG_CONFIG_HOME/signal-first/config.env, or ~/.config/signal-first/config.env
+//   $X_SCOUT_CONFIG, or $XDG_CONFIG_HOME/x-scout/config.env, or ~/.config/x-scout/config.env
 // The file holds KEY=value lines, is created with mode 0600, and is never printed.
 
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -10,11 +10,11 @@ import { dirname, join } from "node:path";
 export const CONFIG_KEYS = ["XAI_API_KEY", "XAI_MODEL", "X_SEARCH_ENDPOINT", "X_SEARCH_API_KEY"];
 
 export function configDir(env = process.env) {
-  return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "signal-first");
+  return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "x-scout");
 }
 
 export function configPath(env = process.env) {
-  return env.SIGNAL_FIRST_CONFIG || join(configDir(env), "config.env");
+  return env.X_SCOUT_CONFIG || join(configDir(env), "config.env");
 }
 
 export function readConfigFile(path) {

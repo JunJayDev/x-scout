@@ -41,7 +41,7 @@ test("post: full FxTwitter data (quote, media, note, article, translation)", asy
   assert.match(p.article.body, /^# Title\n\nPara one\.\n\n1\. first\n\n2\. second\n\n```js/);
   assert.equal(p.translation.text, "翻译");
   assert.match(fake.calls[0].url, /lang=zh/);
-  assert.match(fake.calls[0].headers["user-agent"], /^signal-first\//);
+  assert.match(fake.calls[0].headers["user-agent"], /^x-scout\//);
   const text = renderRead(r);
   assert.match(text, /10k views · 100 likes · 30 replies · 20 reposts · 5 quotes · 60 bookmarks/);
   assert.match(text, /signals: save 0\.6 · talk 0\.3 · spread 0\.25 · eng 2\.15%/);

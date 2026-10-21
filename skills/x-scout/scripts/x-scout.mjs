@@ -19,7 +19,7 @@ var __export = (target, all) => {
 function makeContext(env = {}, fetchImpl) {
   if (!fetchImpl && typeof globalThis.fetch !== "function") throw new Error("no fetch available: use Node 18 or newer");
   const f = fetchImpl || ((input, init) => globalThis.fetch(input, init));
-  return { env: env || {}, fetch: f, userAgent: `signal-first/${VERSION} (+${HOMEPAGE})` };
+  return { env: env || {}, fetch: f, userAgent: `x-scout/${VERSION} (+${HOMEPAGE})` };
 }
 function prune(obj) {
   for (const k of Object.keys(obj)) {
@@ -128,7 +128,7 @@ var VERSION, HOMEPAGE, InputError, ConfigError, sleep, DATE_RE;
 var init_util = __esm({
   "src/util.js"() {
     VERSION = "0.1.0";
-    HOMEPAGE = "https://github.com/signal-first/signal-first";
+    HOMEPAGE = "https://github.com/JunJayDev/x-scout";
     InputError = class extends Error {
     };
     ConfigError = class extends Error {
@@ -1271,7 +1271,7 @@ var init_search = __esm({
 // src/mcp.js
 function instructions(ctx) {
   const search = searchProvider(ctx.env) ? "x_search finds posts by meaning (2-5 different queries) and checks every hit against X." : "x_search is off: set XAI_API_KEY (an xAI API key) where this server runs to turn it on.";
-  return "signal-first lets you read, search and judge X (Twitter). Web fetch cannot open x.com links: use x_read for every X post or profile link. " + search + " Before you trust, cite or recommend an account, run x_audit and read its top posts. Judge information value (original, first-hand, specific, checkable, useful) and reach (views, spread) separately: a post can travel far and say nothing.";
+  return "x-scout lets you read, search and judge X (Twitter). Web fetch cannot open x.com links: use x_read for every X post or profile link. " + search + " Before you trust, cite or recommend an account, run x_audit and read its top posts. Judge information value (original, first-hand, specific, checkable, useful) and reach (views, spread) separately: a post can travel far and say nothing.";
 }
 function listTools(ctx) {
   return searchProvider(ctx.env) ? [X_READ_TOOL, X_SEARCH_TOOL, X_AUDIT_TOOL] : [X_READ_TOOL, X_AUDIT_TOOL];
@@ -1342,7 +1342,7 @@ var init_mcp = __esm({
     init_search();
     init_render();
     init_search();
-    SERVER_INFO = { name: "signal-first", title: "signal-first (X for agents)", version: VERSION };
+    SERVER_INFO = { name: "x-scout", title: "x-scout (X for agents)", version: VERSION };
     PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
     FORMAT = {
       type: "string",
@@ -1431,10 +1431,10 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "n
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 function configDir(env = process.env) {
-  return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "signal-first");
+  return join(env.XDG_CONFIG_HOME || join(homedir(), ".config"), "x-scout");
 }
 function configPath(env = process.env) {
-  return env.SIGNAL_FIRST_CONFIG || join(configDir(env), "config.env");
+  return env.X_SCOUT_CONFIG || join(configDir(env), "config.env");
 }
 function readConfigFile(path) {
   if (!existsSync(path)) return {};
@@ -1492,7 +1492,7 @@ function serveStdio(env = process.env, { input = process.stdin, output = process
     const job = Promise.all(messages.map((m) => handleMessage(m, ctx))).then((replies) => {
       const out = replies.filter(Boolean);
       if (out.length) write(Array.isArray(msg) ? out : out[0]);
-    }).catch((err) => process.stderr.write(`signal-first: ${err.stack || err}
+    }).catch((err) => process.stderr.write(`x-scout: ${err.stack || err}
 `)).finally(() => pending.delete(job));
     pending.add(job);
   });
@@ -1552,7 +1552,7 @@ async function doctor(env, out, { configFile } = {}) {
   } else if (provider === "relay") {
     out(`ok    search via relay ${new URL(env.X_SEARCH_ENDPOINT).host} (not tested: a test search costs money)`);
   } else {
-    out(`off   x_search: no XAI_API_KEY. Run: signal-first setup${configFile ? ` (saves to ${configFile})` : ""}`);
+    out(`off   x_search: no XAI_API_KEY. Run: x-scout setup${configFile ? ` (saves to ${configFile})` : ""}`);
   }
 }
 var init_doctor = __esm({
@@ -1668,7 +1668,7 @@ async function smokeTest(base, token, withSearch, out) {
 async function deploy(argv, env, out) {
   const { flags } = parseArgv(argv, { booleans: ["rotate", "dry-run", "check", "help"] });
   if (flags.help) return out(HELP);
-  const name = flags.name || "signal-first";
+  const name = flags.name || "x-scout";
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(name)) throw new InputError("--name: lowercase letters, digits and dashes");
   const state = loadState(env);
   if (flags.check) {
@@ -1730,9 +1730,9 @@ Done. Your connector URL (the token in it is the password; keep it private):
 
 claude.ai (web, desktop, phone): add a custom connector with this URL; no sign-in needed.
 ChatGPT: in developer mode, create a connector with this URL and no authentication.
-Claude Code: claude mcp add --transport http signal-first ${url}/mcp --header "Authorization: Bearer ${token}"
-${xaiKey ? "x_search is on." : "x_search is off (no XAI_API_KEY). Turn it on: signal-first setup, then deploy again."}
-New token: signal-first deploy --rotate · Test again: signal-first deploy --check`);
+Claude Code: claude mcp add --transport http x-scout ${url}/mcp --header "Authorization: Bearer ${token}"
+${xaiKey ? "x_search is on." : "x_search is off (no XAI_API_KEY). Turn it on: x-scout setup, then deploy again."}
+New token: x-scout deploy --rotate · Test again: x-scout deploy --check`);
 }
 var HELP, COMPAT_DATE;
 var init_deploy = __esm({
@@ -1740,11 +1740,11 @@ var init_deploy = __esm({
     init_config();
     init_util();
     init_cli();
-    HELP = `signal-first deploy: a remote MCP server on your Cloudflare account
+    HELP = `x-scout deploy: a remote MCP server on your Cloudflare account
 
-Usage: signal-first deploy [--name signal-first] [--rotate] [--no-search] [--dry-run] [--check]
+Usage: x-scout deploy [--name x-scout] [--rotate] [--no-search] [--dry-run] [--check]
 
-  --name NAME    Worker name (default signal-first); the URL is https://NAME.<you>.workers.dev
+  --name NAME    Worker name (default x-scout); the URL is https://NAME.<you>.workers.dev
   --rotate       new connector token (the old URL stops working)
   --no-search    do not upload XAI_API_KEY even if it is set (x_read and x_audit only)
   --dry-run      build and validate, upload nothing
@@ -1752,7 +1752,7 @@ Usage: signal-first deploy [--name signal-first] [--rotate] [--no-search] [--dry
 
 Needs Node 18+ and a Cloudflare account. Logging in opens a browser once; in CI set
 CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID) instead. x_search is enabled when
-XAI_API_KEY is set (environment or signal-first setup).`;
+XAI_API_KEY is set (environment or x-scout setup).`;
     COMPAT_DATE = "2025-09-01";
   }
 });
@@ -1858,7 +1858,7 @@ async function main(argv = process.argv.slice(2), out = (s) => process.stdout.wr
       if (!key) return out(`No key saved. x_read and x_audit work without one.`);
       if (!/^xai-[A-Za-z0-9_-]{10,}$/.test(key)) process.stderr.write("warning: xAI keys usually start with 'xai-'\n");
       const path = writeConfigValue("XAI_API_KEY", key);
-      return out(`Saved XAI_API_KEY to ${path} (mode 600). Check it with: signal-first doctor`);
+      return out(`Saved XAI_API_KEY to ${path} (mode 600). Check it with: x-scout doctor`);
     }
     case "doctor": {
       const { doctor: doctor2 } = await Promise.resolve().then(() => (init_doctor(), doctor_exports));
@@ -1873,7 +1873,7 @@ async function main(argv = process.argv.slice(2), out = (s) => process.stdout.wr
       return out(listTools(ctx).map((t) => `${t.name}: ${t.title}`).join("\n") + (searchProvider(ctx.env) ? "" : "\n(x_search: set XAI_API_KEY)"));
     }
     default:
-      throw new InputError(`unknown command: ${cmd}. Run signal-first --help`);
+      throw new InputError(`unknown command: ${cmd}. Run x-scout --help`);
   }
 }
 async function cliEntry() {
@@ -1881,7 +1881,7 @@ async function cliEntry() {
     await main();
   } catch (err) {
     const known = err instanceof InputError || err instanceof ConfigError;
-    process.stderr.write(`signal-first: ${known ? err.message : err.stack || err.message}
+    process.stderr.write(`x-scout: ${known ? err.message : err.stack || err.message}
 `);
     process.exitCode = known ? 2 : 1;
   }
@@ -1893,27 +1893,27 @@ var init_cli = __esm({
     init_mcp();
     init_config();
     init_search();
-    HELP2 = `signal-first ${VERSION}: read, search and judge X (Twitter) from any agent
+    HELP2 = `x-scout ${VERSION}: read, search and judge X (Twitter) from any agent
 
 Usage
-  signal-first read <url|id|@handle>...   posts, threads, replies, profiles, X Articles
+  x-scout read <url|id|@handle>...   posts, threads, replies, profiles, X Articles
       --thread | --replies [--max-replies N] [--by-recency]
       --posts N [--with-replies]           recent posts for profiles (default 20)
       --translate <lang>  --source <fxtwitter|vxtwitter|syndication>
-  signal-first search "<query>" "<query>"... [--from YYYY-MM-DD] [--to YYYY-MM-DD]
+  x-scout search "<query>" "<query>"... [--from YYYY-MM-DD] [--to YYYY-MM-DD]
       [--handle h]... [--exclude h]... [--max N] [--images] [--videos] [--no-verify]
-                                           needs XAI_API_KEY (signal-first setup)
-  signal-first audit <@handle|url> [--posts N]
-  signal-first mcp                         run as a local MCP server (stdio)
-  signal-first setup                       save your xAI API key (prompt, or stdin)
-  signal-first doctor                      check keys and every X source
-  signal-first deploy [options]            put a remote MCP server on Cloudflare Workers
-                                           (see: signal-first deploy --help)
+                                           needs XAI_API_KEY (x-scout setup)
+  x-scout audit <@handle|url> [--posts N]
+  x-scout mcp                         run as a local MCP server (stdio)
+  x-scout setup                       save your xAI API key (prompt, or stdin)
+  x-scout doctor                      check keys and every X source
+  x-scout deploy [options]            put a remote MCP server on Cloudflare Workers
+                                           (see: x-scout deploy --help)
 Common
   --json      full JSON instead of compact text
   --version, --help
 
-Docs: https://github.com/signal-first/signal-first`;
+Docs: https://github.com/JunJayDev/x-scout`;
   }
 });
 

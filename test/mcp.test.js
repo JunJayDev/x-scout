@@ -47,7 +47,7 @@ test("http auth: bearer, secret URL, wrong token, missing config", async () => {
 test("initialize, notifications, batches, unknown methods", async () => {
   const init = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
   assert.equal(init.json.result.protocolVersion, "2025-06-18");
-  assert.equal(init.json.result.serverInfo.name, "signal-first");
+  assert.equal(init.json.result.serverInfo.name, "x-scout");
   assert.match(init.json.result.instructions, /x_search is off/);
   const fallback = await rpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "1999-01-01" } });
   assert.equal(fallback.json.result.protocolVersion, "2025-11-25");
@@ -92,7 +92,7 @@ test("stdio transport", async () => {
   await done;
   const lines = out.trim().split("\n").map((l) => JSON.parse(l));
   assert.equal(lines.length, 3);
-  assert.equal(lines.find((l) => l.id === 1).result.serverInfo.name, "signal-first");
+  assert.equal(lines.find((l) => l.id === 1).result.serverInfo.name, "x-scout");
   assert.equal(lines.find((l) => l.error).error.code, -32700);
   assert.equal(lines.find((l) => l.id === 2).result.tools.length, 2);
 });

@@ -20,7 +20,7 @@ First release.
 - Signals on every post: `save` (bookmarks/likes), `talk`, `spread`, `eng`.
 - One code base for the CLI, a local stdio MCP server, a Cloudflare Worker (remote MCP) and a
   library. Compact text output by default, JSON on request. No runtime dependencies.
-- `signal-first deploy`: Cloudflare Worker in one command, secrets through stdin, smoke test,
+- `x-scout deploy`: Cloudflare Worker in one command, secrets through stdin, smoke test,
   connector URL for claude.ai, ChatGPT and Claude Code. `setup`, `doctor`.
 - The skill: the loop (decide who would know, search like a good post is written, read the
   source, judge value and reach apart, audit, answer, remember), a judging sheet, the
