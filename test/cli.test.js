@@ -17,10 +17,11 @@ test("argv parsing", () => {
 });
 
 test("config file: written 0600, read back, env wins", () => {
-  const dir = mkdtempSync(join(tmpdir(), "sf-"));
+  const dir = mkdtempSync(join(tmpdir(), "xs-"));
   const env = { X_SCOUT_CONFIG: join(dir, "c", "config.env") };
   const path = writeConfigValue("XAI_API_KEY", "xai-file", env);
-  assert.equal(statSync(path).mode & 0o777, 0o600);
+  // Windows has no POSIX permission bits: files read back as 0666 whatever was asked for.
+  if (process.platform !== "win32") assert.equal(statSync(path).mode & 0o777, 0o600);
   assert.deepEqual(readConfigFile(path), { XAI_API_KEY: "xai-file" });
   assert.equal(loadEnv(env).XAI_API_KEY, "xai-file");
   assert.equal(loadEnv({ ...env, XAI_API_KEY: "xai-env" }).XAI_API_KEY, "xai-env");
