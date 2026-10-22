@@ -16,6 +16,15 @@ is high. Other model overrides do not receive this setting. See the [xAI reasoni
 `verify` is a legacy parameter name: loading original content does not fact-check its claims.
 Date and handle filters use the available metadata, preferring loaded original posts.
 
+Selection happens inside that same search: match the query first, prefer concrete insights
+and original sources, skip near-duplicates and generic promotions, and choose complementary
+relevant posts. Likes and follower counts are not quality scores. Substantive minority or
+disputed views remain eligible; agreement is not a criterion. Fewer good matches are better
+than padding the list. These are selection instructions, not a separate review call or a
+guarantee of truth. Grok still returns links only, and readers supply the original text.
+Bare slogans and engagement questions without detail or reasoning are omitted unless the
+query asks for that kind of content.
+
 Cost: xAI bills about $5 per 1,000 posts its model fetches and $10 per 1,000 profiles, plus
 tokens. Each query is capped at 2 tool rounds (`XAI_MAX_TURNS`); a query usually fetches a few
 dozen posts. The tool reports `posts fetched` per query.
