@@ -16,18 +16,34 @@ is high. Other model overrides do not receive this setting. See the [xAI reasoni
 `verify` is a legacy parameter name: loading original content does not fact-check its claims.
 Date and handle filters use the available metadata, preferring loaded original posts.
 
-Selection happens inside that same search: match the query first, prefer concrete insights
-and original sources, skip near-duplicates and generic promotions, and choose complementary
-relevant posts. Likes and follower counts are not quality scores. Substantive minority or
-disputed views remain eligible; agreement is not a criterion. Fewer good matches are better
-than padding the list. These are selection instructions, not a separate review call or a
-guarantee of truth. Grok still returns links only, and readers supply the original text.
-Bare slogans and engagement questions without detail or reasoning are omitted unless the
-query asks for that kind of content.
+## Focused discovery and selection
+
+One caller query defines a fixed topic. Inside the same model request, search the core terms
+first, then make a materially different follow-up informed by the hits: original authors,
+detailed experiences, alternative explanations, objections or overlooked questions. Keep
+all angles inside the topic and supplied constraints. Stop when further hits repeat what
+was already found; never broaden into unrelated subjects to fill the result count.
+
+Prefer detailed original long posts and X Articles with independent views, first-hand
+experience, reasoning, methods or examples. Good framing and overlooked questions matter.
+Length alone is not value. Exclude ordinary news recaps, translations, summaries of others
+and reposts without a substantial independent argument or first-hand experience. Detailed
+bullets or a recommendation do not make a derivative post original. When a hit names its
+source author, follow up on that author for the original. Media accounts face the same rule.
+
+Collect complementary views, including substantive minority and controversial positions.
+Unverified or possibly false claims can be included as the author's views. Do not run fact
+checks or exclude a contribution merely for disagreement, lack of external proof or conflict
+with consensus. Inclusion does not establish truth. Likes and followers are not quality
+scores. Skip bare slogans and engagement questions without detail unless explicitly requested.
+Return fewer results rather than add weak or off-topic matches.
 
 Cost: xAI bills about $5 per 1,000 posts its model fetches and $10 per 1,000 profiles, plus
-tokens. Each query is capped at 2 tool rounds (`XAI_MAX_TURNS`); a query usually fetches a few
-dozen posts. The tool reports `posts fetched` per query.
+tokens. The default cap is 3 assistant/tool turns per query (`XAI_MAX_TURNS` can override it).
+A turn may contain multiple search calls; this is not an exact search-count guarantee.
+JSON usage reports `search_calls` when supplied by the provider and the fetched item counts.
+Follow-up searches may take longer and fetch more posts than a single search. No separate
+review model or scoring output is added.
 
 ## Writing queries
 

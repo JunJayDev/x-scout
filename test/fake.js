@@ -164,7 +164,7 @@ export function makeFetch(overrides = {}) {
           { type: "message", content: [{ type: "output_text", text: "```json\n" + JSON.stringify(prompt.includes('"text"') ? items : items.map(({ url }) => ({ url }))) + "\n```", annotations: [{ type: "url_citation", url: "https://x.com/i/status/7" }] }] },
         ],
         citations: ["https://x.com/i/status/1", "https://x.com/i/user/55"],
-        usage: { input_tokens: 1200, output_tokens: 300, server_side_tool_usage_details: { x_posts_fetched: 25, x_users_fetched: 0 } },
+        usage: { input_tokens: 1200, output_tokens: 300, server_side_tool_usage_details: { x_posts_fetched: 25, x_users_fetched: 0, x_search_calls: 1 } },
       });
     }
     return json(404, { error: `no fake for ${url}` });

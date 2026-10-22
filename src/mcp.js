@@ -75,13 +75,14 @@ export const X_SEARCH_TOOL = {
   name: "x_search",
   title: "Search X",
   description:
-    "Search X posts by topic. Grok finds links; original text, authors and dates come from public post readers. " +
+    "Search a fixed topic through focused follow-up searches, prioritizing detailed original perspectives and experiences over news recaps. " +
+    "Includes substantive differing and unverified views without fact-checking. Grok finds links; public readers supply the originals. " +
     "Start with one query. Up to 20 posts are loaded in parallel within an 8-second read budget; unavailable posts keep their links. " +
     "Use x_read for threads or replies. Optional date and handle filters.",
   inputSchema: {
     type: "object",
     properties: {
-      queries: { type: "array", items: { type: "string", minLength: 1 }, minItems: 1, maxItems: 5, description: "1-5 queries. One query is enough for a normal search." },
+      queries: { type: "array", items: { type: "string", minLength: 1 }, minItems: 1, maxItems: 5, description: "1-5 topic queries. Normally pass one specific topic; the search performs focused follow-ups." },
       max_results: { type: "integer", minimum: 1, maximum: 20, default: 10, description: "Posts to ask for per query (1-20)." },
       from_date: { type: "string", description: "Start date, YYYY-MM-DD." },
       to_date: { type: "string", description: "End date, YYYY-MM-DD (inclusive)." },

@@ -930,7 +930,7 @@ function renderAudit(a) {
 // src/search.js
 var XAI_BASE = "https://api.x.ai/v1";
 var DEFAULT_XAI_MODEL = "grok-4.7";
-var DEFAULT_MAX_TURNS = 2;
+var DEFAULT_MAX_TURNS = 3;
 var RETRY = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
 var VERIFY_LIMIT = 20;
 var READ_BUDGET_MS = 8e3;
@@ -1006,16 +1006,19 @@ async function postJson(ctx, url, body, headers, timeoutMs) {
   }
   throw lastError || new Error("request failed");
 }
-function xaiPrompt(query, args) {
+function xaiPrompt(query, args, maxTurns) {
   return [
-    `Search X for posts that answer: ${query}`,
+    `Fixed topic: ${query}`,
+    "Stay strictly within this topic and the requested constraints. Change search angles, not the topic; never fill gaps with adjacent or unrelated subjects.",
+    `Use x_search within at most ${maxTurns} assistant/tool turns. Start with the topic's core terms.`,
+    maxTurns > 1 ? "After the initial search, make a materially different follow-up informed by the hits: seek original authors, detailed experiences, alternative explanations, objections or overlooked questions on this same topic. When a hit summarizes a named person's work, use a follow-up to locate that person's original post. Use remaining turns only when they can add distinct useful perspectives; stop when results become repetitive." : "Use the available search turn to find distinct on-topic perspectives.",
     `Return up to ${args.maxResults} posts you actually found with the x_search tool, most useful first.`,
-    "Select within this search, without a separate scoring, fact-checking or account-audit pass:",
-    "- Match the query's topic and intent first; include reactions or discussion when requested.",
-    "- Prefer specific insights, first-hand experience, methods, data or examples. Skip bare slogans or engagement questions without detail or reasoning, unless requested.",
-    "- Prefer original sources over copies; skip near-duplicates and generic promotions unless the query asks for them.",
-    "- Choose complementary relevant posts, not several versions of the same point. Do not force unrelated viewpoints for balance.",
-    "- Popularity and follower counts are not quality measures. Keep substantive minority or disputed views; agreement is not a selection criterion.",
+    "Select inside these searches, without a separate scoring, fact-checking or account-audit pass:",
+    "- Prioritize detailed original long posts and X Articles developing the author's own view, experience, reasoning, methods or examples. Seek independent insights, good angles and well-framed questions, not length or polish alone.",
+    "- Prefer ideas and experience native to X over ordinary news readily available elsewhere. Exclude news recaps, translations, summaries of another person's work and reposts unless the author adds a substantial independent argument or first-hand experience. Length, detailed bullet points or a recommendation alone do not make a derivative post original. Media accounts face the same rule.",
+    "- Include substantive competing, minority and controversial perspectives. Unverified or possibly false claims may be included as the author's views; do not fact-check them or filter them for disagreement, lack of external proof or perceived consensus. Inclusion does not establish truth.",
+    "- Choose complementary on-topic contributions rather than near-duplicates. Do not force unrelated viewpoints for balance. Popularity and follower counts are not quality measures.",
+    "- Skip bare conclusions, slogans, engagement questions and generic promotions without useful detail or reasoning, unless the query specifically requests them.",
     "- Return fewer results rather than pad with weak matches.",
     "Answer with only a JSON array, no prose. Each item:",
     args.verify ? '{"url": "https://x.com/<handle>/status/<id>"}. Return links only; no excerpts, summaries, scores or explanations.' : '{"url": "https://x.com/<handle>/status/<id>", "author": "@handle", "date": "YYYY-MM-DD", "text": "the post text, verbatim, up to 280 characters"}',
@@ -1095,13 +1098,15 @@ function parseXaiResponse(data, maxResults = 20) {
     users_fetched: tools.x_users_fetched,
     input_tokens: u.input_tokens,
     output_tokens: u.output_tokens,
-    reasoning_tokens: u.output_tokens_details?.reasoning_tokens
+    reasoning_tokens: u.output_tokens_details?.reasoning_tokens,
+    search_calls: tools.x_search_calls
   });
   return { results, usage };
 }
 async function searchXai(ctx, args, query) {
   const base = (ctx.env.XAI_API_BASE || XAI_BASE).replace(/\/+$/, "");
   const model = ctx.env.XAI_MODEL || DEFAULT_XAI_MODEL;
+  const maxTurns = Number(ctx.env.XAI_MAX_TURNS) || DEFAULT_MAX_TURNS;
   const data = await postJson(
     ctx,
     `${base}/responses`,
@@ -1110,10 +1115,10 @@ async function searchXai(ctx, args, query) {
       // These models support low effort; their upstream default is high.
       // Leave other model overrides untouched rather than assume parameter support.
       reasoning: ["grok-4.5", "grok-4.6", "grok-4.7"].includes(model) ? { effort: "low" } : void 0,
-      input: [{ role: "user", content: xaiPrompt(query, args) }],
+      input: [{ role: "user", content: xaiPrompt(query, args, maxTurns) }],
       tools: [xaiTool(args)],
       include: ["no_inline_citations"],
-      max_turns: Number(ctx.env.XAI_MAX_TURNS) || DEFAULT_MAX_TURNS,
+      max_turns: maxTurns,
       store: false
     },
     { authorization: `Bearer ${ctx.env.XAI_API_KEY}` },
@@ -1304,11 +1309,11 @@ var X_AUDIT_TOOL = {
 var X_SEARCH_TOOL = {
   name: "x_search",
   title: "Search X",
-  description: "Search X posts by topic. Grok finds links; original text, authors and dates come from public post readers. Start with one query. Up to 20 posts are loaded in parallel within an 8-second read budget; unavailable posts keep their links. Use x_read for threads or replies. Optional date and handle filters.",
+  description: "Search a fixed topic through focused follow-up searches, prioritizing detailed original perspectives and experiences over news recaps. Includes substantive differing and unverified views without fact-checking. Grok finds links; public readers supply the originals. Start with one query. Up to 20 posts are loaded in parallel within an 8-second read budget; unavailable posts keep their links. Use x_read for threads or replies. Optional date and handle filters.",
   inputSchema: {
     type: "object",
     properties: {
-      queries: { type: "array", items: { type: "string", minLength: 1 }, minItems: 1, maxItems: 5, description: "1-5 queries. One query is enough for a normal search." },
+      queries: { type: "array", items: { type: "string", minLength: 1 }, minItems: 1, maxItems: 5, description: "1-5 topic queries. Normally pass one specific topic; the search performs focused follow-ups." },
       max_results: { type: "integer", minimum: 1, maximum: 20, default: 10, description: "Posts to ask for per query (1-20)." },
       from_date: { type: "string", description: "Start date, YYYY-MM-DD." },
       to_date: { type: "string", description: "End date, YYYY-MM-DD (inclusive)." },

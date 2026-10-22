@@ -10,7 +10,7 @@ import { renderPost } from "./render.js";
 
 const XAI_BASE = "https://api.x.ai/v1";
 export const DEFAULT_XAI_MODEL = "grok-4.7";
-const DEFAULT_MAX_TURNS = 2; // tool rounds per query; each round can fetch dozens of posts ($5 per 1k)
+const DEFAULT_MAX_TURNS = 3; // assistant/tool turns, not individual search calls
 const RETRY = new Set([429, 500, 502, 503, 504]);
 const VERIFY_LIMIT = 20;
 const READ_BUDGET_MS = 8000;
@@ -93,16 +93,21 @@ async function postJson(ctx, url, body, headers, timeoutMs) {
 
 // --- xAI -----------------------------------------------------------------------------------
 
-function xaiPrompt(query, args) {
+function xaiPrompt(query, args, maxTurns) {
   return [
-    `Search X for posts that answer: ${query}`,
+    `Fixed topic: ${query}`,
+    "Stay strictly within this topic and the requested constraints. Change search angles, not the topic; never fill gaps with adjacent or unrelated subjects.",
+    `Use x_search within at most ${maxTurns} assistant/tool turns. Start with the topic's core terms.`,
+    maxTurns > 1
+      ? "After the initial search, make a materially different follow-up informed by the hits: seek original authors, detailed experiences, alternative explanations, objections or overlooked questions on this same topic. When a hit summarizes a named person's work, use a follow-up to locate that person's original post. Use remaining turns only when they can add distinct useful perspectives; stop when results become repetitive."
+      : "Use the available search turn to find distinct on-topic perspectives.",
     `Return up to ${args.maxResults} posts you actually found with the x_search tool, most useful first.`,
-    "Select within this search, without a separate scoring, fact-checking or account-audit pass:",
-    "- Match the query's topic and intent first; include reactions or discussion when requested.",
-    "- Prefer specific insights, first-hand experience, methods, data or examples. Skip bare slogans or engagement questions without detail or reasoning, unless requested.",
-    "- Prefer original sources over copies; skip near-duplicates and generic promotions unless the query asks for them.",
-    "- Choose complementary relevant posts, not several versions of the same point. Do not force unrelated viewpoints for balance.",
-    "- Popularity and follower counts are not quality measures. Keep substantive minority or disputed views; agreement is not a selection criterion.",
+    "Select inside these searches, without a separate scoring, fact-checking or account-audit pass:",
+    "- Prioritize detailed original long posts and X Articles developing the author's own view, experience, reasoning, methods or examples. Seek independent insights, good angles and well-framed questions, not length or polish alone.",
+    "- Prefer ideas and experience native to X over ordinary news readily available elsewhere. Exclude news recaps, translations, summaries of another person's work and reposts unless the author adds a substantial independent argument or first-hand experience. Length, detailed bullet points or a recommendation alone do not make a derivative post original. Media accounts face the same rule.",
+    "- Include substantive competing, minority and controversial perspectives. Unverified or possibly false claims may be included as the author's views; do not fact-check them or filter them for disagreement, lack of external proof or perceived consensus. Inclusion does not establish truth.",
+    "- Choose complementary on-topic contributions rather than near-duplicates. Do not force unrelated viewpoints for balance. Popularity and follower counts are not quality measures.",
+    "- Skip bare conclusions, slogans, engagement questions and generic promotions without useful detail or reasoning, unless the query specifically requests them.",
     "- Return fewer results rather than pad with weak matches.",
     "Answer with only a JSON array, no prose. Each item:",
     args.verify
@@ -193,6 +198,7 @@ export function parseXaiResponse(data, maxResults = 20) {
     input_tokens: u.input_tokens,
     output_tokens: u.output_tokens,
     reasoning_tokens: u.output_tokens_details?.reasoning_tokens,
+    search_calls: tools.x_search_calls,
   });
   return { results, usage };
 }
@@ -200,6 +206,7 @@ export function parseXaiResponse(data, maxResults = 20) {
 async function searchXai(ctx, args, query) {
   const base = (ctx.env.XAI_API_BASE || XAI_BASE).replace(/\/+$/, "");
   const model = ctx.env.XAI_MODEL || DEFAULT_XAI_MODEL;
+  const maxTurns = Number(ctx.env.XAI_MAX_TURNS) || DEFAULT_MAX_TURNS;
   const data = await postJson(
     ctx,
     `${base}/responses`,
@@ -208,10 +215,10 @@ async function searchXai(ctx, args, query) {
       // These models support low effort; their upstream default is high.
       // Leave other model overrides untouched rather than assume parameter support.
       reasoning: ["grok-4.5", "grok-4.6", "grok-4.7"].includes(model) ? { effort: "low" } : undefined,
-      input: [{ role: "user", content: xaiPrompt(query, args) }],
+      input: [{ role: "user", content: xaiPrompt(query, args, maxTurns) }],
       tools: [xaiTool(args)],
       include: ["no_inline_citations"],
-      max_turns: Number(ctx.env.XAI_MAX_TURNS) || DEFAULT_MAX_TURNS,
+      max_turns: maxTurns,
       store: false,
     },
     { authorization: `Bearer ${ctx.env.XAI_API_KEY}` },

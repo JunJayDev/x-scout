@@ -37,7 +37,7 @@ test("xai: request shape (tool, filters, inclusive to_date, cost cap)", async ()
   assert.match(b.input[0].content, /Return links only/);
   assert.doesNotMatch(b.input[0].content, /"text"/);
   assert.deepEqual(b.include, ["no_inline_citations"]);
-  assert.equal(b.max_turns, 2);
+  assert.equal(b.max_turns, 3);
   assert.equal(b.store, false);
   assert.deepEqual(b.tools, [{ type: "x_search", allowed_x_handles: ["alice", "carol"], from_date: "2026-10-01", to_date: "2026-10-15", enable_image_understanding: true }]);
   assert.match(b.input[0].content, /alpha one/);
@@ -61,6 +61,7 @@ test("xai: merge, verify against X, keep unverified leads", async () => {
   assert.equal(byId["7"], undefined);
   assert.equal(r.verified, r.results.length - 1);
   assert.equal(r.rounds[0].usage.posts_fetched, 25);
+  assert.equal(r.rounds[0].usage.search_calls, 1);
   const text = renderSearch(r);
   assert.match(text, /full posts loaded, 1 could not be loaded/);
   assert.doesNotMatch(text, /not checked/);
@@ -182,4 +183,16 @@ test("original reads share one deadline across fallback sources and keep failed 
   assert.equal(r.verified, 0);
   assert.ok(r.results.every(h => h.url && /budget exhausted/.test(h.unverified)));
   assert.ok(!fake.calls.some(c => c.url.startsWith("https://vx.test") || c.url.startsWith("https://synd.test")), "no further requests after the shared deadline");
+});
+
+
+test("a caller's explicit turn budget is used by both the API and the search instructions", async () => {
+  for (const maxTurns of [1, 2, 4]) {
+    const { ctx, fake } = ctxWith({ ...XAI, XAI_MAX_TURNS: String(maxTurns) });
+    await runSearch({ queries: ["beta"], verify: false }, ctx);
+    const request = fake.calls[0].body;
+    assert.equal(request.max_turns, maxTurns);
+    assert.ok(request.input[0].content.includes(`at most ${maxTurns} assistant/tool turns`));
+    if (maxTurns === 1) assert.doesNotMatch(request.input[0].content, /After the initial search/);
+  }
 });
