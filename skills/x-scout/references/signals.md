@@ -1,6 +1,7 @@
 # What the numbers mean
 
-The tools compute a few ratios from public counts. They are prompts to look closer, never
+The optional `x_audit` tool and library function `postSignals(post)` compute ratios from public counts.
+Ordinary read/search text omits these ratios. They are prompts to look closer, never
 verdicts. Thresholds below are rules of thumb from reading many posts, not laws.
 
 ## Per post

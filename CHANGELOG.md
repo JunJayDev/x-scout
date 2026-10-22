@@ -24,7 +24,11 @@ First release.
 - `x_audit`: account numbers from two timelines (originals for the baseline, with replies for
   the mix): cadence, median and p90 views, likes per 1k followers, save and talk ratios,
   link-out share, breakout, top posts by views and by saves, and hints.
-- Signals on every post: `save` (bookmarks/likes), `talk`, `spread`, `eng`.
+- Compact reading output: content, links and interaction counts; no per-post analysis ratios,
+  follower counts or routine source lines. Fallback, truncation and incomplete-read warnings
+  remain visible. Thread targets are shown once, and searches omit repeated matched-query
+  lines. JSON retains full metadata. Shorter MCP descriptions keep existing arguments intact.
+- Optional `postSignals(post)` library helper: `save` (bookmarks/likes), `talk`, `spread`, `eng`.
 - One code base for the CLI, a local stdio MCP server, a Cloudflare Worker (remote MCP) and a
   library. Compact text output by default, JSON on request. No runtime dependencies.
 - `x-scout deploy`: Cloudflare Worker in one command, secrets through stdin, smoke test,

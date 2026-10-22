@@ -120,6 +120,8 @@ test("verify=false skips reading X", async () => {
   assert.ok(!fake.calls.some((c) => c.url.startsWith("https://fx.test")));
   assert.equal(r.verified, undefined);
   assert.match(renderSearch(r), /search snippets/);
+  assert.doesNotMatch(renderSearch(r), /matched:|Snippets come from search/);
+  assert.deepEqual(r.results[0].matched_queries, ["alpha", "beta"], "query provenance remains in JSON");
 });
 
 test("unexpected authors, redirects, no key", async () => {

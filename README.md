@@ -198,10 +198,9 @@ x-scout search "remotion agent" "AI 视频 剪辑 agent" --handle remotion --jso
 Real output of `x-scout read`:
 
 ```text
-[1] @karpathy · Andrej Karpathy · 4.4M followers · 2026-04-02 20:42Z
+[1] @karpathy · Andrej Karpathy · 2026-04-02 20:42Z
 https://x.com/karpathy/status/2039805659525644595
 22M views · 61k likes · 2.9k replies · 7.4k reposts · 2.2k quotes · 108k bookmarks
-signals: save 1.78 · talk 0.05 · spread 0.16 · eng 0.83%
 
 LLM Knowledge Bases
 ...
@@ -217,7 +216,11 @@ LLM Knowledge Bases
 
 All three tools take `format: "json"` for structured output.
 
-Signals shown when full post metrics are available:
+Default text keeps the post content and interaction counts. Analysis ratios and routine
+source details are omitted; fallback and incomplete-content warnings stay visible. Threads
+show the target post once. Full metadata is available with `--json`.
+
+For optional analysis, the library exports `postSignals(post)` to compute:
 - `save`: bookmarks / likes (measures retention and reference value)
 - `talk`: replies / likes (elevated talk with low save flags debate or bait)
 - `spread`: (reposts + quotes) / likes (amplification rate)

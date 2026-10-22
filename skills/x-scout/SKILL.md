@@ -31,7 +31,8 @@ this skill's folder (Node 18+, no package install).
 - Reading profiles and posts needs no key. Search needs `XAI_API_KEY` (or `x-scout setup`)
   and incurs xAI API charges. Without a key, use web search with `site:x.com` if available,
   or browse known profiles with `x_read`.
-- Default output is compact text; use `format: "json"` / `--json` for structured data.
+- Fill only `targets` to read or `queries` to search; other parameters are optional.
+- Default text keeps content, links and counts. Use `format: "json"` / `--json` for full metadata.
 
 ## Browse and search
 

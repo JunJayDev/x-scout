@@ -194,10 +194,9 @@ x-scout search "remotion agent" "AI 视频 剪辑 agent" --handle remotion --jso
 `x-scout read` 实际输出：
 
 ```text
-[1] @karpathy · Andrej Karpathy · 4.4M followers · 2026-04-02 20:42Z
+[1] @karpathy · Andrej Karpathy · 2026-04-02 20:42Z
 https://x.com/karpathy/status/2039805659525644595
 22M views · 61k likes · 2.9k replies · 7.4k reposts · 2.2k quotes · 108k bookmarks
-signals: save 1.78 · talk 0.05 · spread 0.16 · eng 0.83%
 
 LLM Knowledge Bases
 ...
@@ -213,7 +212,9 @@ LLM Knowledge Bases
 
 三个工具均支持 `format: "json"` 参数以获取结构化数据。
 
-取得帖子互动数据时显示的指标：
+默认文本保留帖子内容和互动计数，省去分析比率及正常情况下的数据源说明；降级读取、截断和不完整内容仍会提示。线程中的目标帖只显示一次。完整元数据可通过 `--json` 获取。
+
+需要分析时，可通过库导出的 `postSignals(post)` 计算：
 - `save`：收藏 / 点赞（反映留存价值与实用性）
 - `talk`：回复 / 点赞（回复多但收藏少通常提示争议或钓互动）
 - `spread`：（转发 + 引用）/ 点赞（扩散速率）

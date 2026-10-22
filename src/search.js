@@ -347,10 +347,8 @@ export function renderSearch(r) {
       if (h.unverified) lines.push(`full post unavailable: ${h.unverified}`);
       if (l.snippet) lines.push(l.snippet);
     }
-    lines.push(`matched: ${h.matched_queries.map((q) => `"${q}"`).join(", ")}`);
   });
   if (!r.results.length) lines.push("", "No posts. Try other wording, the other language, concrete names, or a wider date range.");
-  else if (r.results.some((h) => !h.post)) lines.push("", "Snippets come from search; use x_read for full text, threads or replies when needed.");
   return lines.join("\n");
 }
 
