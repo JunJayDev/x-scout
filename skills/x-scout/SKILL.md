@@ -1,6 +1,9 @@
 ---
 name: x-scout
 description: Read, search and judge X (Twitter). Open any X link, find posts by meaning with every hit checked against X, tell first-hand signal from hype and AI slop, audit accounts, and check drafts before posting.
+metadata:
+  improve-repo: JunJayDev/x-scout
+  improve-path: skills/x-scout
 ---
 
 # x-scout
@@ -111,4 +114,14 @@ Never write engagement bait, and say so when a draft is bait. The goal is posts 
   Give the user the links and let them act; follow links: `https://x.com/intent/follow?screen_name=<handle>`.
 - If a tool fails, say which source failed and what you could not check.
 
-If a defect in this skill stays unfixed, report it as an issue on the repository.
+## Improve this skill
+
+This skill is open source (`metadata.improve-repo` in its header). When a run goes wrong because of the skill itself, not the user's input or the environment (a wrong or missing step, a command that fails, output that misleads, a case it should cover), fix it at the source instead of working around it.
+
+Run `gh repo view <improve-repo> --json viewerPermission`. With WRITE, MAINTAIN or ADMIN:
+
+1. Work in a clone of the repository, never in the installed copy, on a branch `improve/<short-slug>`.
+2. Change the skill or its code, add a test (or an eval case) that fails without the change, and run the repository's checks.
+3. Commit, push the branch and open a pull request: what you ran, what went wrong, the evidence, what changed. Do not merge it. Keep personal paths, tokens and account names out of the diff and the text.
+
+With less permission, or without `gh`: tell the user what you found and offer the fix as a patch; open no pull request or issue unasked. If you cannot fix it now, say so in your answer and offer to open an issue.

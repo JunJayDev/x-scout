@@ -10,6 +10,9 @@ export class InputError extends Error {}
 /** Missing key or endpoint. The message says how to fix it. */
 export class ConfigError extends Error {}
 
+// The search provider failed (timeout, rate limit, network). The message says what to do; no stack is needed.
+export class SearchError extends Error {}
+
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**

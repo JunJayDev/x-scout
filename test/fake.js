@@ -141,6 +141,9 @@ export function makeFetch(overrides = {}) {
     if (url.host === "xai.test" && p === "/v1/responses") {
       if (init.headers.authorization !== "Bearer xai-test-key") return json(401, { error: "bad key" });
       const prompt = body.input[0].content;
+      if (prompt.includes("hangs")) {   // never answers; only the caller's timeout ends it
+        return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }))));
+      }
       if (prompt.includes("always429")) return json(429, { error: "rate limited" });
       if (prompt.includes("redirect")) return new Response(null, { status: 302, headers: { location: "https://moved.test/v1/responses" } });
       if (prompt.includes("flaky")) {
