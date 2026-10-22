@@ -11,11 +11,14 @@ First release.
   endpoint and says what the fallback could not provide. Posts carry the author's avatar
   (`author_avatar`) and profiles theirs (`avatar`) when the source gives one.
 - `x_search`: 1-5 queries through xAI's `x_search` tool, merged by post. Returns search
-  originals by default: Grok returns links only, then public readers load up to 20 posts
+  originals by default: Grok returns links only, then public readers load up to 10 posts
   under one 8-second read budget. Supported Grok models use low reasoning effort.
   `verify: false` / `--no-verify` retains model snippets without separate reads.
   Fixed-topic discovery is instructed to make a distinct follow-up after the initial search,
-  under a default three-turn cap. It prioritizes detailed original long posts, independent
+  under a shared five-turn ceiling with early stopping. English is the default; technical
+  searches may add Chinese and regional topics prioritize local languages. Results target
+  six by default, at most ten in the merged response; legacy larger requests are capped.
+  Multiple caller queries share the turn budget and retain top results from each query. It prioritizes detailed original long posts, independent
   perspectives and useful question framing over news recaps and copied summaries. Substantive
   controversial or unverified views remain eligible without fact-checking. Off-topic results
   and near-duplicate perspectives must not fill the list. Provider search-call counts appear

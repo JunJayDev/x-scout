@@ -77,13 +77,14 @@ export const X_SEARCH_TOOL = {
   description:
     "Search a fixed topic through focused follow-up searches, prioritizing detailed original perspectives and experiences over news recaps. " +
     "Includes substantive differing and unverified views without fact-checking. Grok finds links; public readers supply the originals. " +
-    "Start with one query. Up to 20 posts are loaded in parallel within an 8-second read budget; unavailable posts keep their links. " +
+    "English first; add Chinese for technical topics and prioritize local languages for regional topics. Queries share 5 tool turns, stopping early when enough. " +
+    "Start with one query. Normally returns 2-6 distinct posts (10 maximum), loaded within an 8-second read budget; unavailable posts keep their links. " +
     "Use x_read for threads or replies. Optional date and handle filters.",
   inputSchema: {
     type: "object",
     properties: {
       queries: { type: "array", items: { type: "string", minLength: 1 }, minItems: 1, maxItems: 5, description: "1-5 topic queries. Normally pass one specific topic; the search performs focused follow-ups." },
-      max_results: { type: "integer", minimum: 1, maximum: 20, default: 10, description: "Posts to ask for per query (1-20)." },
+      max_results: { type: "integer", minimum: 1, maximum: 10, default: 6, description: "Total distinct posts across all queries (1-10). Fewer when matches are weak." },
       from_date: { type: "string", description: "Start date, YYYY-MM-DD." },
       to_date: { type: "string", description: "End date, YYYY-MM-DD (inclusive)." },
       allowed_x_handles: { type: "array", items: { type: "string" }, maxItems: 20, description: "Only posts from these accounts (max 20). Not with excluded_x_handles." },

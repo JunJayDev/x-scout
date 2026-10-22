@@ -37,7 +37,9 @@ this skill's folder (Node 18+, no package install).
 ## Browse and search
 
 1. **Open the supplied link or pass one fixed topic.** The search is instructed to make
-   focused follow-ups inside that topic. Prefer detailed original long posts, independent
+   focused follow-ups inside that topic, sharing at most five tool turns across caller queries.
+   English is the default; technical topics can add Chinese and local topics prioritize their
+   own language. Stop early when enough useful perspectives are found. Prefer detailed original long posts, independent
    views, first-hand experience and useful questions over news recaps and copied summaries.
    Include substantive differing, controversial and unverified views without fact-checking;
    attribute them as the author's views. Do not expand into unrelated topics or repeat the
@@ -49,7 +51,8 @@ this skill's folder (Node 18+, no package install).
    sources-file write. If the user asks for deeper account analysis, use `x_audit`; the optional
    judging and signal references are `references/judging.md` and `references/signals.md`.
 
-Search loads up to 20 original posts in parallel, with a shared 8-second reading budget.
+Search normally returns 2-6 distinct posts, at most 10 across all queries, without padding
+sparse results. Original posts load in parallel with a shared 8-second reading budget.
 If a post cannot be loaded, its link remains in the results with the reason. No truth scoring
 is involved. Only set `verify: false` (CLI `--no-verify`) if model snippets are sufficient and
 you want to skip original reads. The default needs no extra parameter.

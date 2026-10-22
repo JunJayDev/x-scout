@@ -211,7 +211,7 @@ LLM Knowledge Bases
 | Tool | Capabilities | Key |
 |---|---|---|
 | `x_read` | 1-10 post URLs, IDs, profile URLs or @handles. Mode: `post`, `thread`, `replies`. Profiles with up to 100 recent posts. Optional translation. | None |
-| `x_search` | 1-5 queries; Grok finds links and public readers supply original text, authors and dates. Inclusive dates, up to 20 allowed or excluded handles, image/video understanding, up to 20 results per query. Loads up to 20 originals within an 8-second read budget; `verify: false` returns model snippets instead. | `XAI_API_KEY` |
+| `x_search` | 1-5 queries; Grok finds links and public readers supply original text, authors and dates. Inclusive dates, up to 20 allowed or excluded handles, image/video understanding, 6 results by default, at most 10 across all queries. Loads originals within an 8-second read budget; `verify: false` returns model snippets instead. | `XAI_API_KEY` |
 | `x_audit` | Reads an account's last 10-100 posts: cadence, mix, median and p90 views, likes per 1k followers, save and talk ratios, link-out share, breakout multiplier, top posts by views and by saves, X's "About this account", hints. | None |
 
 All three tools take `format: "json"` for structured output.
@@ -239,16 +239,21 @@ The [skill](skills/x-scout/SKILL.md) starts with the user's request:
 For profiles, `x_read` returns the bio, counts and 20 recent posts by default. Set
 `profile_posts: 0` (CLI `--posts 0`) for just the bio and counts, or choose up to 100 posts.
 
-Search asks Grok for links only, then loads original posts in parallel (up to 20, with a
+Search asks Grok for links only, then loads original posts in parallel (up to 10, with a
 shared 8-second reading budget). Supported Grok models use low reasoning effort to avoid
 spending high-effort reasoning on ordinary searches. A failed read keeps the link and error;
 loading a post does not fact-check its claims.
 
 A query is a fixed topic. Grok searches its core terms, then follows up on distinct angles,
-experiences and objections within that topic, with a default cap of three tool turns. It
-prioritizes detailed original long posts, independent perspectives and useful questions over
+experiences and objections within that topic. All caller queries share at most five tool
+turns, with early stopping when coverage is sufficient. It prioritizes detailed original long posts, independent perspectives and useful questions over
 routine news and copied summaries. Substantive controversial or unverified claims remain
 eligible as the author's views, without fact-checking or treating inclusion as proof.
+
+English is the default search language. Technical topics may add Chinese; local topics
+prioritize their local language. One topic is normally enough as input. Results target six
+distinct posts by default, with a total cap of ten (`max_results`), even across multiple queries.
+Two to six strong matches are preferable to padding; zero or one is valid for sparse topics.
 
 `verify: false` (CLI `--no-verify`) skips the readers and returns model snippets. Existing
 `verify: true` / `--verify` calls remain supported; original loading is now the default.
@@ -265,7 +270,7 @@ It provides links and leaves actions to the user. See [platform rules](skills/x-
 | Operation | Cost |
 |---|---|
 | Reading & auditing | Free. Uses public endpoints; FxTwitter allows 1,000 requests per minute per IP. |
-| Searching | xAI bills about $5 per 1,000 posts fetched by the model, plus tokens. Queries cap at 3 assistant/tool turns; each turn may contain several searches. Focused follow-ups can increase latency and fetched-post costs. Output reports posts fetched; JSON includes search-call counts when available. |
+| Searching | xAI bills about $5 per 1,000 posts fetched by the model, plus tokens. Queries share a five-turn budget; each turn may contain several searches. Focused follow-ups can increase latency and fetched-post costs. Output reports posts fetched; JSON includes search-call counts when available. |
 | Remote server | Cloudflare Workers free plan includes 100,000 requests per day. |
 | Token footprint | Short post under 100 tokens; account audit roughly 600-1,000 tokens. |
 

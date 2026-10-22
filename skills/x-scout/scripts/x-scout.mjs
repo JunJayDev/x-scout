@@ -966,8 +966,7 @@ function parseSearchArgs(raw) {
   if (queries.length < 1) throw new InputError("give at least one query");
   if (queries.length > 5) throw new InputError("give at most five queries");
   if (new Set(queries.map((q) => q.toLowerCase())).size !== queries.length) throw new InputError("queries must be different");
-  const maxResults = raw.max_results === void 0 ? 10 : Number(raw.max_results);
-  if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 20) throw new InputError("max_results must be an integer between 1 and 20");
+  const maxResults = Math.min(MAX_RESULTS, clampInt(raw.max_results, 6, 1, 20, "max_results"));
   const fromDate = exactDate(raw.from_date, "from_date");
   const toDate = exactDate(raw.to_date, "to_date");
   if (fromDate && toDate && fromDate > toDate) throw new InputError("from_date must not be after to_date");
@@ -1033,9 +1032,12 @@ function xaiPrompt(query, args, maxTurns) {
   return [
     `Fixed topic: ${query}`,
     "Stay strictly within this topic and the requested constraints. Change search angles, not the topic; never fill gaps with adjacent or unrelated subjects.",
+    "Search in English by default, regardless of the query's language, unless the user explicitly restricts language. For technical topics, also try Chinese when it can add useful first-hand experience. For local or regional topics, prioritize the local language and native terms, using English for complementary context. Do not mechanically repeat every query in every language.",
     `Use x_search within at most ${maxTurns} assistant/tool turns. Start with the topic's core terms.`,
     maxTurns > 1 ? "After the initial search, make a materially different follow-up informed by the hits: seek original authors, detailed experiences, alternative explanations, objections or overlooked questions on this same topic. When a hit summarizes a named person's work, use a follow-up to locate that person's original post. Use remaining turns only when they can add distinct useful perspectives; stop when results become repetitive." : "Use the available search turn to find distinct on-topic perspectives.",
+    "This is a ceiling, not a quota. Use early turns for core searches and focused follow-ups; reserve later turns for a specific missing perspective or source. Stop once the selection is sufficient and additional searches are unlikely to add substance.",
     `Return up to ${args.maxResults} posts you actually found with the x_search tool, most useful first.`,
+    args.maxResults > 1 ? `Aim for 2-${args.maxResults} distinct contributions. Do not fill the cap automatically; 0 or 1 is acceptable when the topic has too few strong matches.` : "The caller requested at most one result; return the strongest match only.",
     "Select inside these searches, without a separate scoring, fact-checking or account-audit pass:",
     "- Prioritize detailed original long posts and X Articles developing the author's own view, experience, reasoning, methods or examples. Seek independent insights, good angles and well-framed questions, not length or polish alone.",
     "- Prefer ideas and experience native to X over ordinary news readily available elsewhere. Exclude news recaps, translations, summaries of another person's work and reposts unless the author adds a substantial independent argument or first-hand experience. Length, detailed bullet points or a recommendation alone do not make a derivative post original. Media accounts face the same rule.",
@@ -1126,10 +1128,9 @@ function parseXaiResponse(data, maxResults = 20) {
   });
   return { results, usage };
 }
-async function searchXai(ctx, args, query) {
+async function searchXai(ctx, args, query, maxTurns) {
   const base = (ctx.env.XAI_API_BASE || XAI_BASE).replace(/\/+$/, "");
   const model = ctx.env.XAI_MODEL || DEFAULT_XAI_MODEL;
-  const maxTurns = Number(ctx.env.XAI_MAX_TURNS) || DEFAULT_MAX_TURNS;
   const data = await postJson(
     ctx,
     `${base}/responses`,
@@ -1165,7 +1166,12 @@ async function runSearch(raw, ctx) {
   const args = parseSearchArgs(raw);
   const provider = searchProvider(ctx.env);
   if (!provider) throw new ConfigError("x_search needs XAI_API_KEY");
-  const settled = await Promise.allSettled(args.queries.map((q) => searchXai(ctx, args, q)));
+  const perQueryCap = Math.min(DEFAULT_MAX_TURNS, clampInt(ctx.env.XAI_MAX_TURNS, DEFAULT_MAX_TURNS, 1, Number.MAX_SAFE_INTEGER, "XAI_MAX_TURNS"));
+  const turns = args.queries.map((_, i) => Math.min(
+    perQueryCap,
+    Math.floor(DEFAULT_MAX_TURNS / args.queries.length) + (i < DEFAULT_MAX_TURNS % args.queries.length ? 1 : 0)
+  ));
+  const settled = await Promise.allSettled(args.queries.map((q, i) => searchXai(ctx, args, q, turns[i])));
   const failed = settled.map((s, i) => s.status === "rejected" ? { query: args.queries[i], error: s.reason.message, transient: Boolean(s.reason.transient) } : null).filter(Boolean);
   if (failed.some((f) => !f.transient) || failed.length === args.queries.length) {
     throw new SearchError(failed.map((f) => `query ${JSON.stringify(f.query)}: ${f.error}`).join("; "));
@@ -1176,21 +1182,22 @@ async function runSearch(raw, ctx) {
     if (s.status === "rejected") return;
     const q = args.queries[i];
     rounds.push(prune({ query: q, hits: s.value.results.length, usage: s.value.usage }));
-    for (const r of s.value.results) {
+    for (const [rank, r] of s.value.results.entries()) {
       const id = statusId(r.url);
       let e = merged.get(id);
-      if (!e) merged.set(id, e = { id, url: r.url, matched_queries: [], lead: {} });
+      if (!e) merged.set(id, e = { id, url: r.url, rank, matched_queries: [], lead: {} });
+      e.rank = Math.min(e.rank, rank);
       if (!e.matched_queries.includes(q)) e.matched_queries.push(q);
       e.cited = e.cited || r.cited;
       for (const k of ["author", "published_at", "snippet"]) if (!e.lead[k] && r[k]) e.lead[k] = r[k];
     }
   });
   let hits = [...merged.values()];
-  hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length);
+  hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length || a.rank - b.rank);
+  hits = hits.slice(0, args.maxResults);
   if (args.verify) {
     const readCtx = { ...ctx, deadline: Math.min(ctx.deadline ?? Infinity, Date.now() + READ_BUDGET_MS) };
-    const toCheck = hits.slice(0, VERIFY_LIMIT);
-    await mapLimit(toCheck, 5, async (h) => {
+    await mapLimit(hits, 5, async (h) => {
       h.checked = true;
       try {
         const r = await readPost(readCtx, { kind: "post", id: h.id, input: h.url }, {});
@@ -1204,7 +1211,6 @@ async function runSearch(raw, ctx) {
         h.unverified = `could not read it from X: ${err.message}`;
       }
     });
-    for (const h of hits.slice(VERIFY_LIMIT)) h.unverified = `not loaded (limit ${VERIFY_LIMIT})`;
   }
   const allowed = new Set(args.allowed.map((h) => `@${h.toLowerCase()}`));
   const unexpected = [
@@ -1250,7 +1256,7 @@ function renderSearch(r) {
   const asked = r.rounds.length + (r.failed ? r.failed.length : 0);
   const head = [
     `${r.results.length} posts from ${r.rounds.length}${r.failed ? ` of ${asked}` : ""} queries (${r.provider})`,
-    r.verified === void 0 ? "search snippets" : [`${r.verified} full posts loaded`, r.unverified ? `${r.unverified} could not be loaded` : "", r.unchecked ? `${r.unchecked} not loaded (limit ${VERIFY_LIMIT})` : ""].filter(Boolean).join(", ")
+    r.verified === void 0 ? "search snippets" : [`${r.verified} full posts loaded`, r.unverified ? `${r.unverified} could not be loaded` : "", r.unchecked ? `${r.unchecked} not loaded` : ""].filter(Boolean).join(", ")
   ];
   const lines = [head.join(" · ")];
   for (const q of r.rounds) {
@@ -1274,7 +1280,7 @@ function renderSearch(r) {
   if (!r.results.length) lines.push("", "No posts. Try other wording, the other language, concrete names, or a wider date range.");
   return lines.join("\n");
 }
-var XAI_BASE, DEFAULT_XAI_MODEL, DEFAULT_MAX_TURNS, RETRY, VERIFY_LIMIT, READ_BUDGET_MS;
+var XAI_BASE, DEFAULT_XAI_MODEL, DEFAULT_MAX_TURNS, MAX_RESULTS, RETRY, READ_BUDGET_MS;
 var init_search = __esm({
   "src/search.js"() {
     init_util();
@@ -1282,9 +1288,9 @@ var init_search = __esm({
     init_render();
     XAI_BASE = "https://api.x.ai/v1";
     DEFAULT_XAI_MODEL = "grok-4.7";
-    DEFAULT_MAX_TURNS = 3;
+    DEFAULT_MAX_TURNS = 5;
+    MAX_RESULTS = 10;
     RETRY = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
-    VERIFY_LIMIT = 20;
     READ_BUDGET_MS = 8e3;
   }
 });
@@ -1419,12 +1425,12 @@ var init_mcp = __esm({
     X_SEARCH_TOOL = {
       name: "x_search",
       title: "Search X",
-      description: "Search a fixed topic through focused follow-up searches, prioritizing detailed original perspectives and experiences over news recaps. Includes substantive differing and unverified views without fact-checking. Grok finds links; public readers supply the originals. Start with one query. Up to 20 posts are loaded in parallel within an 8-second read budget; unavailable posts keep their links. Use x_read for threads or replies. Optional date and handle filters.",
+      description: "Search a fixed topic through focused follow-up searches, prioritizing detailed original perspectives and experiences over news recaps. Includes substantive differing and unverified views without fact-checking. Grok finds links; public readers supply the originals. English first; add Chinese for technical topics and prioritize local languages for regional topics. Queries share 5 tool turns, stopping early when enough. Start with one query. Normally returns 2-6 distinct posts (10 maximum), loaded within an 8-second read budget; unavailable posts keep their links. Use x_read for threads or replies. Optional date and handle filters.",
       inputSchema: {
         type: "object",
         properties: {
           queries: { type: "array", items: { type: "string", minLength: 1 }, minItems: 1, maxItems: 5, description: "1-5 topic queries. Normally pass one specific topic; the search performs focused follow-ups." },
-          max_results: { type: "integer", minimum: 1, maximum: 20, default: 10, description: "Posts to ask for per query (1-20)." },
+          max_results: { type: "integer", minimum: 1, maximum: 10, default: 6, description: "Total distinct posts across all queries (1-10). Fewer when matches are weak." },
           from_date: { type: "string", description: "Start date, YYYY-MM-DD." },
           to_date: { type: "string", description: "End date, YYYY-MM-DD (inclusive)." },
           allowed_x_handles: { type: "array", items: { type: "string" }, maxItems: 20, description: "Only posts from these accounts (max 20). Not with excluded_x_handles." },

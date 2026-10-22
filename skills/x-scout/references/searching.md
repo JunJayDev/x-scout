@@ -5,7 +5,7 @@
 Each query goes to xAI's Responses API with the `x_search` tool. Grok decides how to search:
 keyword search with X's operators (Top or Latest), semantic search, user search, or fetching a
 thread. By default, it returns selected post links only, without copying or summarizing the
-post text. x-scout loads up to 20 originals through its public readers, five at a time, within
+post text. x-scout loads up to 10 originals through its public readers, five at a time, within
 a shared 8-second budget. Failed reads retain the link and a reason. A valid empty selection
 stays empty; citations are only a fallback when no JSON array can be parsed.
 
@@ -18,8 +18,18 @@ Date and handle filters use the available metadata, preferring loaded original p
 
 ## Focused discovery and selection
 
-One caller query defines a fixed topic. Inside the same model request, search the core terms
-first, then make a materially different follow-up informed by the hits: original authors,
+One caller query defines a fixed topic. The default result target is six distinct posts;
+`max_results` caps the merged response, not each query separately, at ten. Usually return
+two to six strong contributions, but zero or one is valid when the topic is sparse. Legacy
+requests for 11-20 results are accepted and capped at ten. Multiple query lists are deduplicated
+and interleaved by provider rank after prioritizing shared hits, before original reads.
+
+Language strategy: search in English by default, unless the caller explicitly restricts
+language. Technical topics may add Chinese for complementary experience. For local or
+regional topics, prioritize the local language and native terms, with English for broader
+context. Do not mechanically translate every query into every language.
+
+Inside the same model request, search the core terms first, then make a materially different follow-up informed by the hits: original authors,
 detailed experiences, alternative explanations, objections or overlooked questions. Keep
 all angles inside the topic and supplied constraints. Stop when further hits repeat what
 was already found; never broaden into unrelated subjects to fill the result count.
@@ -39,7 +49,10 @@ scores. Skip bare slogans and engagement questions without detail unless explici
 Return fewer results rather than add weak or off-topic matches.
 
 Cost: xAI bills about $5 per 1,000 posts its model fetches and $10 per 1,000 profiles, plus
-tokens. The default cap is 3 assistant/tool turns per query (`XAI_MAX_TURNS` can override it).
+tokens. All queries share at most five assistant/tool turns. One query can use five; two queries
+receive three and two; five receive one each. `XAI_MAX_TURNS` can lower each query's cap,
+but cannot raise the shared ceiling. Use early turns for core retrieval and focused follow-ups;
+reserve later turns for a concrete missing angle. Stop early when coverage is sufficient.
 A turn may contain multiple search calls; this is not an exact search-count guarantee.
 JSON usage reports `search_calls` when supplied by the provider and the fetched item counts.
 Follow-up searches may take longer and fetch more posts than a single search. No separate
@@ -56,7 +69,8 @@ Good posts name things. Search the way the post you want would be written.
 | "what do people think of X's algorithm" | "x-algorithm repo" / "param.rs weights" / "推荐算法 开源 权重" |
 
 - Start with one query. Use up to 5 different queries when a broader search is useful.
-- Try another language when useful. Chinese, Japanese and English queries find different posts.
+- English is the default. Add Chinese when useful for technical topics, and local languages
+  for regional topics. Prefer one caller query and let Grok choose the language-specific searches.
 - Names of the people who would know: put them in `allowed_x_handles` (up to 20) for a focused
   pass, then run a second pass without the filter for reactions.
 - Dates: `from_date` and `to_date` are inclusive (`YYYY-MM-DD`). Use them for "what happened

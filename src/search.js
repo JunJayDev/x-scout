@@ -4,15 +4,15 @@
 // XAI_API_KEY turns it on: POST <XAI_API_BASE>/responses with the x_search tool. XAI_API_BASE
 // defaults to https://api.x.ai/v1; set it for any endpoint that speaks xAI's Responses API.
 
-import { ConfigError, InputError, SearchError, cleanHandles, compact, exactDate, mapLimit, prune, sleep, str } from "./util.js";
+import { ConfigError, InputError, SearchError, clampInt, cleanHandles, compact, exactDate, mapLimit, prune, sleep, str } from "./util.js";
 import { parseTarget, readPost, statusId } from "./read.js";
 import { renderPost } from "./render.js";
 
 const XAI_BASE = "https://api.x.ai/v1";
 export const DEFAULT_XAI_MODEL = "grok-4.7";
-const DEFAULT_MAX_TURNS = 3; // assistant/tool turns, not individual search calls
+const DEFAULT_MAX_TURNS = 5; // shared assistant/tool-turn budget across queries, not search calls
+const MAX_RESULTS = 10;
 const RETRY = new Set([429, 500, 502, 503, 504]);
-const VERIFY_LIMIT = 20;
 const READ_BUDGET_MS = 8000;
 
 export function searchProvider(env = {}) {
@@ -25,8 +25,8 @@ export function parseSearchArgs(raw) {
   if (queries.length < 1) throw new InputError("give at least one query");
   if (queries.length > 5) throw new InputError("give at most five queries");
   if (new Set(queries.map((q) => q.toLowerCase())).size !== queries.length) throw new InputError("queries must be different");
-  const maxResults = raw.max_results === undefined ? 10 : Number(raw.max_results);
-  if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 20) throw new InputError("max_results must be an integer between 1 and 20");
+  // Accept old 11-20 requests, but enforce the current total-result ceiling.
+  const maxResults = Math.min(MAX_RESULTS, clampInt(raw.max_results, 6, 1, 20, "max_results"));
   const fromDate = exactDate(raw.from_date, "from_date");
   const toDate = exactDate(raw.to_date, "to_date");
   if (fromDate && toDate && fromDate > toDate) throw new InputError("from_date must not be after to_date");
@@ -97,11 +97,16 @@ function xaiPrompt(query, args, maxTurns) {
   return [
     `Fixed topic: ${query}`,
     "Stay strictly within this topic and the requested constraints. Change search angles, not the topic; never fill gaps with adjacent or unrelated subjects.",
+    "Search in English by default, regardless of the query's language, unless the user explicitly restricts language. For technical topics, also try Chinese when it can add useful first-hand experience. For local or regional topics, prioritize the local language and native terms, using English for complementary context. Do not mechanically repeat every query in every language.",
     `Use x_search within at most ${maxTurns} assistant/tool turns. Start with the topic's core terms.`,
     maxTurns > 1
       ? "After the initial search, make a materially different follow-up informed by the hits: seek original authors, detailed experiences, alternative explanations, objections or overlooked questions on this same topic. When a hit summarizes a named person's work, use a follow-up to locate that person's original post. Use remaining turns only when they can add distinct useful perspectives; stop when results become repetitive."
       : "Use the available search turn to find distinct on-topic perspectives.",
+    "This is a ceiling, not a quota. Use early turns for core searches and focused follow-ups; reserve later turns for a specific missing perspective or source. Stop once the selection is sufficient and additional searches are unlikely to add substance.",
     `Return up to ${args.maxResults} posts you actually found with the x_search tool, most useful first.`,
+    args.maxResults > 1
+      ? `Aim for 2-${args.maxResults} distinct contributions. Do not fill the cap automatically; 0 or 1 is acceptable when the topic has too few strong matches.`
+      : "The caller requested at most one result; return the strongest match only.",
     "Select inside these searches, without a separate scoring, fact-checking or account-audit pass:",
     "- Prioritize detailed original long posts and X Articles developing the author's own view, experience, reasoning, methods or examples. Seek independent insights, good angles and well-framed questions, not length or polish alone.",
     "- Prefer ideas and experience native to X over ordinary news readily available elsewhere. Exclude news recaps, translations, summaries of another person's work and reposts unless the author adds a substantial independent argument or first-hand experience. Length, detailed bullet points or a recommendation alone do not make a derivative post original. Media accounts face the same rule.",
@@ -203,10 +208,9 @@ export function parseXaiResponse(data, maxResults = 20) {
   return { results, usage };
 }
 
-async function searchXai(ctx, args, query) {
+async function searchXai(ctx, args, query, maxTurns) {
   const base = (ctx.env.XAI_API_BASE || XAI_BASE).replace(/\/+$/, "");
   const model = ctx.env.XAI_MODEL || DEFAULT_XAI_MODEL;
-  const maxTurns = Number(ctx.env.XAI_MAX_TURNS) || DEFAULT_MAX_TURNS;
   const data = await postJson(
     ctx,
     `${base}/responses`,
@@ -250,7 +254,10 @@ export async function runSearch(raw, ctx) {
 
   // Queries run in parallel. A query that fails for a passing reason (timeout, rate limit, network) is reported
   // and the others still answer; a setup problem (bad key, wrong URL) or every query failing fails the call.
-  const settled = await Promise.allSettled(args.queries.map((q) => searchXai(ctx, args, q)));
+  const perQueryCap = Math.min(DEFAULT_MAX_TURNS, clampInt(ctx.env.XAI_MAX_TURNS, DEFAULT_MAX_TURNS, 1, Number.MAX_SAFE_INTEGER, "XAI_MAX_TURNS"));
+  const turns = args.queries.map((_, i) => Math.min(perQueryCap,
+    Math.floor(DEFAULT_MAX_TURNS / args.queries.length) + (i < DEFAULT_MAX_TURNS % args.queries.length ? 1 : 0)));
+  const settled = await Promise.allSettled(args.queries.map((q, i) => searchXai(ctx, args, q, turns[i])));
   const failed = settled
     .map((s, i) => (s.status === "rejected" ? { query: args.queries[i], error: s.reason.message, transient: Boolean(s.reason.transient) } : null))
     .filter(Boolean);
@@ -264,10 +271,11 @@ export async function runSearch(raw, ctx) {
     if (s.status === "rejected") return;
     const q = args.queries[i];
     rounds.push(prune({ query: q, hits: s.value.results.length, usage: s.value.usage }));
-    for (const r of s.value.results) {
+    for (const [rank, r] of s.value.results.entries()) {
       const id = statusId(r.url);
       let e = merged.get(id);
-      if (!e) merged.set(id, (e = { id, url: r.url, matched_queries: [], lead: {} }));
+      if (!e) merged.set(id, (e = { id, url: r.url, rank, matched_queries: [], lead: {} }));
+      e.rank = Math.min(e.rank, rank);
       if (!e.matched_queries.includes(q)) e.matched_queries.push(q);
       e.cited = e.cited || r.cited;
       for (const k of ["author", "published_at", "snippet"]) if (!e.lead[k] && r[k]) e.lead[k] = r[k];
@@ -275,13 +283,13 @@ export async function runSearch(raw, ctx) {
   });
 
   let hits = [...merged.values()];
-  // Posts that more queries agree on first, then the order the search returned them.
-  hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length);
+  // Agreement first, then provider rank, so one query cannot fill the entire result cap.
+  hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length || a.rank - b.rank);
+  hits = hits.slice(0, args.maxResults);
 
   if (args.verify) {
     const readCtx = { ...ctx, deadline: Math.min(ctx.deadline ?? Infinity, Date.now() + READ_BUDGET_MS) };
-    const toCheck = hits.slice(0, VERIFY_LIMIT);
-    await mapLimit(toCheck, 5, async (h) => {
+    await mapLimit(hits, 5, async (h) => {
       h.checked = true;
       try {
         const r = await readPost(readCtx, { kind: "post", id: h.id, input: h.url }, {});
@@ -295,7 +303,6 @@ export async function runSearch(raw, ctx) {
         h.unverified = `could not read it from X: ${err.message}`;
       }
     });
-    for (const h of hits.slice(VERIFY_LIMIT)) h.unverified = `not loaded (limit ${VERIFY_LIMIT})`;
   }
 
   const allowed = new Set(args.allowed.map((h) => `@${h.toLowerCase()}`));
@@ -349,7 +356,7 @@ export function renderSearch(r) {
     `${r.results.length} posts from ${r.rounds.length}${r.failed ? ` of ${asked}` : ""} queries (${r.provider})`,
     r.verified === undefined
       ? "search snippets"
-      : [`${r.verified} full posts loaded`, r.unverified ? `${r.unverified} could not be loaded` : "", r.unchecked ? `${r.unchecked} not loaded (limit ${VERIFY_LIMIT})` : ""].filter(Boolean).join(", "),
+      : [`${r.verified} full posts loaded`, r.unverified ? `${r.unverified} could not be loaded` : "", r.unchecked ? `${r.unchecked} not loaded` : ""].filter(Boolean).join(", "),
   ];
   const lines = [head.join(" · ")];
   for (const q of r.rounds) {
