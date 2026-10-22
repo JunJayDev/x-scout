@@ -244,6 +244,12 @@ shared 8-second reading budget). Supported Grok models use low reasoning effort 
 spending high-effort reasoning on ordinary searches. A failed read keeps the link and error;
 loading a post does not fact-check its claims.
 
+A query is a fixed topic. Grok searches its core terms, then follows up on distinct angles,
+experiences and objections within that topic, with a default cap of three tool turns. It
+prioritizes detailed original long posts, independent perspectives and useful questions over
+routine news and copied summaries. Substantive controversial or unverified claims remain
+eligible as the author's views, without fact-checking or treating inclusion as proof.
+
 `verify: false` (CLI `--no-verify`) skips the readers and returns model snippets. Existing
 `verify: true` / `--verify` calls remain supported; original loading is now the default.
 
@@ -259,7 +265,7 @@ It provides links and leaves actions to the user. See [platform rules](skills/x-
 | Operation | Cost |
 |---|---|
 | Reading & auditing | Free. Uses public endpoints; FxTwitter allows 1,000 requests per minute per IP. |
-| Searching | xAI bills about $5 per 1,000 posts fetched by the model, plus tokens. Queries cap at 2 search rounds and usually fetch 10 to 60 posts (duration: 30s to 2.5m). Output reports posts fetched. |
+| Searching | xAI bills about $5 per 1,000 posts fetched by the model, plus tokens. Queries cap at 3 assistant/tool turns; each turn may contain several searches. Focused follow-ups can increase latency and fetched-post costs. Output reports posts fetched; JSON includes search-call counts when available. |
 | Remote server | Cloudflare Workers free plan includes 100,000 requests per day. |
 | Token footprint | Short post under 100 tokens; account audit roughly 600-1,000 tokens. |
 

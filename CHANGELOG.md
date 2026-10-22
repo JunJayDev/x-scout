@@ -14,9 +14,12 @@ First release.
   originals by default: Grok returns links only, then public readers load up to 20 posts
   under one 8-second read budget. Supported Grok models use low reasoning effort.
   `verify: false` / `--no-verify` retains model snippets without separate reads.
-  Link selection prioritizes query relevance, specific substance and original sources,
-  reduces near-duplicates and generic promotions, and retains useful differing views.
-  No extra review call or output scoring is added; weak matches need not fill the result cap.
+  Fixed-topic discovery is instructed to make a distinct follow-up after the initial search,
+  under a default three-turn cap. It prioritizes detailed original long posts, independent
+  perspectives and useful question framing over news recaps and copied summaries. Substantive
+  controversial or unverified views remain eligible without fact-checking. Off-topic results
+  and near-duplicate perspectives must not fill the list. Provider search-call counts appear
+  in JSON usage when available. No separate review call or output scoring is added.
   Valid empty selections stay empty, without padding from viewed citations. Date and handle
   filters use available metadata, with loaded posts taking precedence. Inclusive date range,
   cost cap per query, posts-fetched report. `XAI_API_BASE` supports compatible Responses APIs.

@@ -36,9 +36,12 @@ this skill's folder (Node 18+, no package install).
 
 ## Browse and search
 
-1. **Open the supplied link or search once.** One query is enough to start. Add wording or
-   another language only when results are poor or the user wants a broad search (up to 5
-   queries per call). Dates and handles can narrow a search; see `references/searching.md`.
+1. **Open the supplied link or pass one fixed topic.** The search is instructed to make
+   focused follow-ups inside that topic. Prefer detailed original long posts, independent
+   views, first-hand experience and useful questions over news recaps and copied summaries.
+   Include substantive differing, controversial and unverified views without fact-checking;
+   attribute them as the author's views. Do not expand into unrelated topics or repeat the
+   search automatically. See `references/searching.md` for the selection policy.
 2. **Return useful content with links.** Grok finds post links; public readers supply the
    original text, author, date and metrics. Reuse those posts. Use `x_read` only for threads,
    replies, or a post the search could not load. Missing or truncated content is marked.
