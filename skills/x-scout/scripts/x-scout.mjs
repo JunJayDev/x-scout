@@ -124,7 +124,7 @@ function quantile(values, q) {
   if (!v.length) return null;
   return v[Math.min(v.length - 1, Math.floor(q * v.length))];
 }
-var VERSION, HOMEPAGE, InputError, ConfigError, sleep, DATE_RE;
+var VERSION, HOMEPAGE, InputError, ConfigError, SearchError, sleep, DATE_RE;
 var init_util = __esm({
   "src/util.js"() {
     VERSION = "0.1.0";
@@ -132,6 +132,8 @@ var init_util = __esm({
     InputError = class extends Error {
     };
     ConfigError = class extends Error {
+    };
+    SearchError = class extends Error {
     };
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -1018,7 +1020,7 @@ async function postJson(ctx, url, body, headers, timeoutMs) {
       }
       const text = await res.text();
       if (!res.ok) {
-        lastError = new Error(`HTTP ${res.status}: ${text.slice(0, 400)}`);
+        lastError = Object.assign(new Error(`HTTP ${res.status}: ${text.slice(0, 400)}`), { transient: RETRY.has(res.status) });
         if (!RETRY.has(res.status) || attempt === 2) throw lastError;
       } else {
         try {
@@ -1028,8 +1030,11 @@ async function postJson(ctx, url, body, headers, timeoutMs) {
         }
       }
     } catch (err) {
-      const retryable = err.name === "AbortError" || err.name === "TypeError";
-      lastError = err.name === "AbortError" ? new Error(`timed out after ${timeoutMs / 1e3}s`) : err;
+      if (err.name === "AbortError") {
+        throw Object.assign(new Error(`timed out after ${timeoutMs / 1e3}s`), { transient: true });
+      }
+      const retryable = err.name === "TypeError";
+      lastError = retryable ? Object.assign(err, { transient: true }) : err;
       if (!retryable || attempt === 2) throw lastError;
     } finally {
       clearTimeout(timer);
@@ -1142,11 +1147,14 @@ async function runSearch(raw, ctx) {
   const provider = searchProvider(ctx.env);
   if (!provider) throw new ConfigError("x_search needs XAI_API_KEY");
   const settled = await Promise.allSettled(args.queries.map((q) => searchXai(ctx, args, q)));
-  const failures = settled.map((s, i) => s.status === "rejected" ? `query ${JSON.stringify(args.queries[i])}: ${s.reason.message}` : null).filter(Boolean);
-  if (failures.length) throw new Error(failures.join("; "));
+  const failed = settled.map((s, i) => s.status === "rejected" ? { query: args.queries[i], error: s.reason.message, transient: Boolean(s.reason.transient) } : null).filter(Boolean);
+  if (failed.some((f) => !f.transient) || failed.length === args.queries.length) {
+    throw new SearchError(failed.map((f) => `query ${JSON.stringify(f.query)}: ${f.error}`).join("; "));
+  }
   const merged = /* @__PURE__ */ new Map();
   const rounds = [];
   settled.forEach((s, i) => {
+    if (s.status === "rejected") return;
     const q = args.queries[i];
     rounds.push(prune({ query: q, hits: s.value.results.length, usage: s.value.usage }));
     for (const r of s.value.results) {
@@ -1192,6 +1200,7 @@ async function runSearch(raw, ctx) {
     kind: "search",
     provider,
     rounds,
+    failed: failed.length ? failed.map(({ query, error }) => ({ query, error })) : void 0,
     filters: prune({
       allowed_x_handles: args.allowed,
       excluded_x_handles: args.excluded,
@@ -1216,8 +1225,9 @@ async function runSearch(raw, ctx) {
   });
 }
 function renderSearch(r) {
+  const asked = r.rounds.length + (r.failed ? r.failed.length : 0);
   const head = [
-    `${r.results.length} posts from ${r.rounds.length} queries (${r.provider})`,
+    `${r.results.length} posts from ${r.rounds.length}${r.failed ? ` of ${asked}` : ""} queries (${r.provider})`,
     r.verified === void 0 ? "not verified" : [`${r.verified} confirmed on X`, r.unverified ? `${r.unverified} not found on X` : "", r.unchecked ? `${r.unchecked} not checked (only the first ${VERIFY_LIMIT} are)` : ""].filter(Boolean).join(", ")
   ];
   const lines = [head.join(" · ")];
@@ -1225,6 +1235,7 @@ function renderSearch(r) {
     const u = q.usage || {};
     lines.push(`- "${q.query}": ${q.hits} hits${u.posts_fetched !== void 0 ? ` · ${u.posts_fetched} posts fetched by the search model` : ""}`);
   }
+  for (const f of r.failed || []) lines.push(`FAILED, not searched: "${f.query}": ${f.error}. This list is incomplete; run that query again.`);
   if (r.unexpected_authors && r.unexpected_authors.length) lines.push(`unexpected authors (outside allowed_x_handles): ${r.unexpected_authors.join(", ")}`);
   r.results.forEach((h, i) => {
     lines.push("", `———`);
@@ -1892,7 +1903,7 @@ async function cliEntry() {
   try {
     await main();
   } catch (err) {
-    const known = err instanceof InputError || err instanceof ConfigError;
+    const known = err instanceof InputError || err instanceof ConfigError || err instanceof SearchError;
     process.stderr.write(`x-scout: ${known ? err.message : err.stack || err.message}
 `);
     process.exitCode = known ? 2 : 1;

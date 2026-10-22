@@ -8,7 +8,7 @@
 // XAI_API_KEY turns it on: POST <XAI_API_BASE>/responses with the x_search tool. XAI_API_BASE
 // defaults to https://api.x.ai/v1; set it for any endpoint that speaks xAI's Responses API.
 
-import { ConfigError, InputError, cleanHandles, compact, exactDate, mapLimit, prune, sleep, str } from "./util.js";
+import { ConfigError, InputError, SearchError, cleanHandles, compact, exactDate, mapLimit, prune, sleep, str } from "./util.js";
 import { readPost, statusId } from "./read.js";
 import { renderPost } from "./render.js";
 
@@ -69,7 +69,7 @@ async function postJson(ctx, url, body, headers, timeoutMs) {
       }
       const text = await res.text();
       if (!res.ok) {
-        lastError = new Error(`HTTP ${res.status}: ${text.slice(0, 400)}`);
+        lastError = Object.assign(new Error(`HTTP ${res.status}: ${text.slice(0, 400)}`), { transient: RETRY.has(res.status) });
         if (!RETRY.has(res.status) || attempt === 2) throw lastError;
       } else {
         try {
@@ -79,8 +79,12 @@ async function postJson(ctx, url, body, headers, timeoutMs) {
         }
       }
     } catch (err) {
-      const retryable = err.name === "AbortError" || err.name === "TypeError";
-      lastError = err.name === "AbortError" ? new Error(`timed out after ${timeoutMs / 1000}s`) : err;
+      if (err.name === "AbortError") {
+        // The whole time allowance is spent; trying again twice would triple the wait.
+        throw Object.assign(new Error(`timed out after ${timeoutMs / 1000}s`), { transient: true });
+      }
+      const retryable = err.name === "TypeError";
+      lastError = retryable ? Object.assign(err, { transient: true }) : err;
       if (!retryable || attempt === 2) throw lastError;
     } finally {
       clearTimeout(timer);
@@ -210,14 +214,20 @@ export async function runSearch(raw, ctx) {
   const provider = searchProvider(ctx.env);
   if (!provider) throw new ConfigError("x_search needs XAI_API_KEY");
 
-  // Queries run in parallel. One failed query fails the call: a partial answer would look complete.
+  // Queries run in parallel. A query that fails for a passing reason (timeout, rate limit, network) is reported
+  // and the others still answer; a setup problem (bad key, wrong URL) or every query failing fails the call.
   const settled = await Promise.allSettled(args.queries.map((q) => searchXai(ctx, args, q)));
-  const failures = settled.map((s, i) => (s.status === "rejected" ? `query ${JSON.stringify(args.queries[i])}: ${s.reason.message}` : null)).filter(Boolean);
-  if (failures.length) throw new Error(failures.join("; "));
+  const failed = settled
+    .map((s, i) => (s.status === "rejected" ? { query: args.queries[i], error: s.reason.message, transient: Boolean(s.reason.transient) } : null))
+    .filter(Boolean);
+  if (failed.some((f) => !f.transient) || failed.length === args.queries.length) {
+    throw new SearchError(failed.map((f) => `query ${JSON.stringify(f.query)}: ${f.error}`).join("; "));
+  }
 
   const merged = new Map();
   const rounds = [];
   settled.forEach((s, i) => {
+    if (s.status === "rejected") return;
     const q = args.queries[i];
     rounds.push(prune({ query: q, hits: s.value.results.length, usage: s.value.usage }));
     for (const r of s.value.results) {
@@ -270,6 +280,7 @@ export async function runSearch(raw, ctx) {
     kind: "search",
     provider,
     rounds,
+    failed: failed.length ? failed.map(({ query, error }) => ({ query, error })) : undefined,
     filters: prune({
       allowed_x_handles: args.allowed,
       excluded_x_handles: args.excluded,
@@ -295,8 +306,9 @@ export async function runSearch(raw, ctx) {
 }
 
 export function renderSearch(r) {
+  const asked = r.rounds.length + (r.failed ? r.failed.length : 0);
   const head = [
-    `${r.results.length} posts from ${r.rounds.length} queries (${r.provider})`,
+    `${r.results.length} posts from ${r.rounds.length}${r.failed ? ` of ${asked}` : ""} queries (${r.provider})`,
     r.verified === undefined
       ? "not verified"
       : [`${r.verified} confirmed on X`, r.unverified ? `${r.unverified} not found on X` : "", r.unchecked ? `${r.unchecked} not checked (only the first ${VERIFY_LIMIT} are)` : ""].filter(Boolean).join(", "),
@@ -306,6 +318,7 @@ export function renderSearch(r) {
     const u = q.usage || {};
     lines.push(`- "${q.query}": ${q.hits} hits${u.posts_fetched !== undefined ? ` · ${u.posts_fetched} posts fetched by the search model` : ""}`);
   }
+  for (const f of r.failed || []) lines.push(`FAILED, not searched: "${f.query}": ${f.error}. This list is incomplete; run that query again.`);
   if (r.unexpected_authors && r.unexpected_authors.length) lines.push(`unexpected authors (outside allowed_x_handles): ${r.unexpected_authors.join(", ")}`);
   r.results.forEach((h, i) => {
     lines.push("", `———`);

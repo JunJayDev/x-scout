@@ -1,7 +1,7 @@
 // Command-line interface. Agents that read skills call it from a shell; people use it to
 // set up and deploy. Output is the same compact text the MCP tools return (--json for JSON).
 
-import { ConfigError, InputError, VERSION, makeContext } from "./util.js";
+import { ConfigError, InputError, SearchError, VERSION, makeContext } from "./util.js";
 import { callTool, listTools } from "./mcp.js";
 import { configPath, loadEnv, writeConfigValue } from "./config.js";
 import { searchProvider } from "./search.js";
@@ -169,7 +169,7 @@ export async function cliEntry() {
   try {
     await main();
   } catch (err) {
-    const known = err instanceof InputError || err instanceof ConfigError;
+    const known = err instanceof InputError || err instanceof ConfigError || err instanceof SearchError;
     process.stderr.write(`x-scout: ${known ? err.message : err.stack || err.message}\n`);
     process.exitCode = known ? 2 : 1;
   }

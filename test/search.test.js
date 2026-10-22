@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeContext } from "../src/util.js";
+import { SearchError, makeContext } from "../src/util.js";
 import { dayAfter, parseXaiResponse, renderSearch, runSearch, searchProvider } from "../src/search.js";
 import { ENV, makeFetch } from "./fake.js";
 
@@ -66,11 +66,33 @@ test("xai: merge, verify against X, keep unverified leads", async () => {
   assert.match(text, /25 posts fetched by the search model/);
 });
 
-test("xai: retries a 503, fails the call on persistent 429", async () => {
-  const { ctx } = ctxWith(XAI);
+test("xai: retries a 503; a persistent 429 on one query is reported and the others still answer", async () => {
+  const { ctx, fake } = ctxWith(XAI);
   const ok = await runSearch({ queries: ["flaky alpha", "beta"] }, ctx);
   assert.ok(ok.results.length > 0);
-  await assert.rejects(runSearch({ queries: ["always429", "beta"] }, ctx), /HTTP 429/);
+  assert.equal(ok.failed, undefined);
+  const part = await runSearch({ queries: ["always429", "beta"] }, ctx);
+  assert.ok(part.results.length > 0);
+  assert.deepEqual(part.failed.map((f) => f.query), ["always429"]);
+  assert.match(part.failed[0].error, /HTTP 429/);
+  const text = renderSearch(part);
+  assert.match(text, /posts from 1 of 2 queries/);
+  assert.match(text, /FAILED, not searched: "always429": HTTP 429.*incomplete/);
+  assert.ok(fake.calls.length > 0);
+});
+
+test("xai: every query failing fails the call with a known error", async () => {
+  const { ctx } = ctxWith(XAI);
+  await assert.rejects(runSearch({ queries: ["always429", "always429 two"] }, ctx), (err) => err instanceof SearchError && /HTTP 429/.test(err.message));
+});
+
+test("xai: a timeout is not retried, and the other queries still answer", async () => {
+  const { ctx, fake } = ctxWith({ ...XAI, SEARCH_TIMEOUT_S: "0.05" });
+  const r = await runSearch({ queries: ["hangs one", "beta"] }, ctx);
+  assert.deepEqual(r.failed.map((f) => f.query), ["hangs one"]);
+  assert.match(r.failed[0].error, /timed out after 0\.05s/);
+  assert.ok(r.results.length > 0);
+  assert.equal(fake.calls.filter((c) => c.body && JSON.stringify(c.body).includes("hangs one")).length, 1);   // one try, not three
 });
 
 test("xai: response parsing ignores user links and prose", () => {

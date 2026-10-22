@@ -178,7 +178,7 @@ npx -y github:JunJayDev/x-scout doctor     # 检查 key 与各读取数据源
 
 未配置 key 时，读取与账号审查功能依然可用，skill 会自动回退到网络搜索（`site:x.com ...`）配合 `x_read`。
 
-高级选项：`setup --base-url <url>`（或 `XAI_API_BASE`）支持对接兼容 xAI Responses API 的端点；`XAI_MODEL` 指定模型（默认 `grok-4.7`）。`deploy` 会把这些设置同步给远程服务器。
+高级选项：`setup --base-url <url>`（或 `XAI_API_BASE`）支持对接兼容 xAI Responses API 的端点；`XAI_MODEL` 指定模型（默认 `grok-4.7`）。`SEARCH_TIMEOUT_S` 设置单条查询最长等待秒数（默认 120）；3 条查询实测用了 3.5 分钟，查询显示 `FAILED, not searched` 时调大它。`deploy` 会把这些设置同步给远程服务器。
 
 ## 快速上手
 

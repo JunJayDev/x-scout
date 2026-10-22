@@ -178,7 +178,7 @@ Alternatively, set `XAI_API_KEY` in your environment. Run `deploy` again to sync
 
 Without a key, reading and auditing remain fully functional, and the skill falls back to web searches (`site:x.com ...`) followed by `x_read`.
 
-Advanced options: `setup --base-url <url>` (or `XAI_API_BASE`) configures custom endpoints speaking xAI's Responses API; `XAI_MODEL` specifies the model (default: `grok-4.7`). `deploy` forwards these settings to your remote server.
+Advanced options: `setup --base-url <url>` (or `XAI_API_BASE`) configures custom endpoints speaking xAI's Responses API; `XAI_MODEL` specifies the model (default: `grok-4.7`). `SEARCH_TIMEOUT_S` sets how long one query may take (default 120); three queries took 3.5 minutes in one test, so raise it if queries come back as `FAILED, not searched`. `deploy` forwards these settings to your remote server.
 
 ## Quick start
 
