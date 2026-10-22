@@ -1,20 +1,12 @@
+[English](README.md) · **中文**
+
 # x-scout
 
-**agent 打不开 x.com；在 X 上搜东西，搜到的是声音最大的那几条。x-scout 让 agent 能读任何 X 链接，按意思搜 X 并逐条回 X 核对，再按「有没有用」而不是「传得多远」判断帖子和账号。**
+面向 AI Agent 的 X（Twitter）调研工具：不登录读任何帖子，搜索结果逐条回 X 核对，把价值和传播分开判断。
 
-x-scout 是一个 agent skill，带三个工具：`x_read`、`x_search` 和 `x_audit`。它可以作为 Claude Code 插件安装，可以作为本地 MCP 服务器接入任何客户端，可以当命令行用，也可以一条命令部署到你自己的 Cloudflare 账号，在 claude.ai、ChatGPT 和手机上用。读取不需要 key，也不需要 X 账号；搜索需要一个 xAI API key。
+[![CI](https://github.com/JunJayDev/x-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/JunJayDev/x-scout/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[English](README.md)
-
-## 为什么做
-
-在 X 上，做东西的人常常最先发声：维护者解释 bug，创始人公开真实数字，研究者在论文之前先发图。同一条信息流里，也挤满了靠钩子、互关圈、搬运串推和 AI 垃圾内容换来的流量。
-
-agent 在这两头都吃亏。x.com 要登录、要运行 JavaScript，agent 根本读不了。即使通过网页搜索或搜索模型找到了帖子，agent 也会把传得最远的当成最重要的，把搜索模型的概括当成原帖来引用。
-
-X 开源的推荐代码说明了传播和价值为什么会分开。回复的权重是 5，复制链接是 20，点赞是 0.66。收藏最能说明一条帖子值得留下，它的权重是 0（[详情](skills/x-scout/references/x-algorithm.md)）。传得远的，是让人有反应的内容；有用的，是让人存下来的内容。
-
-放到一个账号上，差别是这样的：
+x-scout 为 AI Agent 提供三个 MCP 工具（`x_read`、`x_search`、`x_audit`）、一套将内容价值与传播数据区分判断的 skill，以及配套 CLI。可在本地以 stdio MCP、CLI 或 Claude Code 插件运行，也支持一键部署到个人的 Cloudflare 账号，供 claude.ai、ChatGPT 及手机客户端直接接入。读取与账号审查无需登录，也无需 API key；语义搜索调用 xAI 的 Grok 获取线索，再逐条回 X 重新读取核对。
 
 ```text
 $ x-scout audit @karpathy
@@ -30,73 +22,184 @@ top by saves (bookmarks/likes):
   LLM Knowledge Bases Something I'm finding very useful recently: using LLMs to build personal ...
 ```
 
-传得最远的一条是新闻。被存下来最多的一条是方法，收藏比赞还多。按浏览量排序的 agent 会读第一条；想学东西的 agent 应该读第二条。
-
-## 和同类有什么不同
-
-- **不登录就能读 X。** 帖子全文和各项计数（浏览、点赞、回复、转发、引用、收藏），串推、回复、被引用的帖子、投票、社区笔记和 X Article 全文；账号资料和最近的帖子。三个公开数据源依次回退，每条结果都写明来自哪个数据源、回退后缺了什么。
-- **搜索结果只是线索，不当原文引用。** `x_search` 调用 Grok 的 `x_search` 工具，再把每一条结果回 X 重读一遍。正文、作者、时间和计数都取自帖子本身。X 上核对不到的结果保留在答案里，标为「未核实」，搜索模型的原话单独标出。
-- **两个分数，不合成一个。** skill 分开判断价值（是否亲历、是否具体、能否核对、是否新、是否有用）和传播（浏览、扩散），并点出问题：钓互动、搬运清单、借流量、AI 垃圾内容。每条帖子带三个比值：`save`（收藏 / 赞）、`talk`（回复 / 赞）和 `spread`（每个赞对应的转发加引用）。
-- **账号和它自己比。** `x_audit` 分别读取一个账号的原创和回复，把每条帖子和这个账号自己的中位数比较，而不是和大号比较。爆过一条，不等于一直值得看。
-- **只建议，不动手。** X 禁止自动点赞、批量关注，以及未经批准的 AI 回复机器人。x-scout 不登录、不碰你的账号，只给出链接，由你自己点。
-- **为 agent 阅读而写。** 工具输出是紧凑文本：不输出空字段，数字缩写，帖子正文原样保留。需要 JSON 时加一个参数即可。
+传得最远的一条是新闻（浏览量是这个账号中位数的 47.7 倍）。被收藏最多的一条（收藏比点赞还多）是一个方法。X 开源的推荐代码里，回复的权重是 5，复制链接 20，点赞 0.66，收藏是 0：传得远的是让人有反应的内容，有用的是让人存下来的内容。x-scout 把这两样分开打分。
 
 ## 安装
 
-任选一种。这些步骤都可以交给 agent 完成，对它说：「按 https://github.com/JunJayDev/x-scout/blob/main/INSTALL.md 安装 x-scout」。需要人做的只有两件事：粘贴 xAI key（可选）；部署远程服务器时，在 Cloudflare 页面点一次「Allow」。
+你可以直接交给 Agent 自动安装：对它说「按 https://github.com/JunJayDev/x-scout/blob/main/INSTALL.md 安装 x-scout」。
 
-**Claude Code 插件**（skill 和工具一起装）
+按客户端选择安装路径：
+- **Claude Code**：安装插件，包含工具与 skill，自动管理可选的 xAI key。
+- **Codex**：添加 MCP 服务器运行工具，通过插件市场安装 skill。
+- **Cursor、VS Code、Claude Desktop 及其他 MCP 客户端**：配置 stdio MCP 服务器。
+- **claude.ai、ChatGPT 与手机端**：一条命令部署远程 Cloudflare Worker。
+- **仅支持 skill 的 Agent**：直接复制独立的 skill 目录。
 
-```
+<details>
+<summary>Claude Code</summary>
+
+安装插件（打包 skill 与 MCP 服务器，提示输入可选的 xAI key 并存入系统钥匙串）：
+
+```bash
 /plugin install x-scout --marketplace JunJayDev/x-scout
 ```
 
-Claude Code 低于 2.1.275 时：先运行 `/plugin marketplace add JunJayDev/x-scout`，再运行 `/plugin install x-scout@x-scout`。插件会询问一个可选的 xAI key，并把它存进系统钥匙串。
-
-**Codex 插件**（skill）：运行 `codex plugin marketplace add JunJayDev/x-scout`，再从插件列表安装 x-scout。工具部分按下面的方式添加 MCP 服务器。
-
-**任意 MCP 客户端**（Codex、Cursor、Claude Desktop、不装插件的 Claude Code 等）
+Claude Code 2.1.275 之前的版本：
 
 ```bash
-claude mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp      # Claude Code
-codex mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp       # Codex
+/plugin marketplace add JunJayDev/x-scout
+/plugin install x-scout@x-scout
 ```
 
-其他客户端：命令填 `npx`，参数填 `-y github:JunJayDev/x-scout mcp`。需要 Node 18 或更新版本。
+或者不装插件，仅添加 MCP 服务器：
 
-**只装 skill。** 把 [`skills/x-scout/`](skills/x-scout/) 复制到 agent 的 skills 目录（`~/.claude/skills/`、`.agents/skills/` 等）。这个目录是自包含的：agent 在其中运行 `node scripts/x-scout.mjs <命令>`，不需要安装任何东西。
+```bash
+claude mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp
+```
 
-**claude.ai、ChatGPT、手机**（部署在你自己 Cloudflare 账号上的远程 MCP 服务器，免费套餐即可）
+</details>
+
+<details>
+<summary>Codex</summary>
+
+添加 MCP 工具服务器：
+
+```bash
+codex mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp
+```
+
+通过插件市场添加 skill：
+
+```bash
+codex plugin marketplace add JunJayDev/x-scout
+```
+
+然后在插件列表中安装 `x-scout`。
+
+</details>
+
+<details>
+<summary>Cursor</summary>
+
+添加到 `~/.cursor/mcp.json`：
+
+```json
+{
+  "mcpServers": {
+    "x-scout": {
+      "command": "npx",
+      "args": ["-y", "github:JunJayDev/x-scout", "mcp"]
+    }
+  }
+}
+```
+
+开启搜索时，在 `x-scout` 配置内加入 `"env": {"XAI_API_KEY": "xai-..."}`。
+
+</details>
+
+<details>
+<summary>VS Code</summary>
+
+添加到 `.vscode/mcp.json`：
+
+```json
+{
+  "servers": {
+    "x-scout": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:JunJayDev/x-scout", "mcp"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary>Claude Desktop 及其他 MCP 客户端</summary>
+
+支持 stdio MCP 的客户端通用配置（命令 `npx`，参数 `["-y", "github:JunJayDev/x-scout", "mcp"]`）：
+
+```json
+{
+  "mcpServers": {
+    "x-scout": {
+      "command": "npx",
+      "args": ["-y", "github:JunJayDev/x-scout", "mcp"]
+    }
+  }
+}
+```
+
+开启搜索时，在配置内加入 `"env": {"XAI_API_KEY": "xai-..."}`。需要 Node 18 或更新版本。
+
+</details>
+
+<details>
+<summary>claude.ai、ChatGPT 与手机端（远程部署）</summary>
+
+部署远程 MCP 服务器到你自己的 Cloudflare 账号（免费套餐即可）：
 
 ```bash
 npx -y github:JunJayDev/x-scout deploy
 ```
 
-这条命令会登录 Cloudflare（只在第一次打开浏览器），部署 Worker，通过 stdin 上传密钥，从公网地址测试服务器，最后打印连接器地址。在 claude.ai 中把它添加为自定义连接器，或在 ChatGPT 的开发者模式中添加为连接器，不需要登录。在网页端添加的连接器，手机 App 里也能用。`--rotate` 生成新地址；`--check` 重新测试。
+首次运行会自动打开浏览器登录 Cloudflare。命令完成 Worker 部署，通过 stdin 写入密钥，完成公网可用性检查，并输出连接器地址：
+`https://x-scout.<your-subdomain>.workers.dev/mcp/<token>`
 
-**开启搜索**（可选）：在 [console.x.ai](https://console.x.ai) 申请 API key，然后运行：
+在 claude.ai 中添加为自定义连接器，或在 ChatGPT 的开发者模式中添加为连接器，客户端无需登录。在网页端配置后会自动同步到手机 App。
+
+加 `--rotate` 参数可生成新地址，加 `--check` 可重新测试连通性。更新密钥后重新运行 `deploy` 即可。
+
+</details>
+
+<details>
+<summary>仅安装 skill</summary>
+
+将 [`skills/x-scout/`](skills/x-scout/) 复制到 Agent 的 skills 目录（`~/.claude/skills/`、`~/.codex/skills/` 或 `.agents/skills/`）。该目录完全自包含：Agent 依靠 Node 18 或更高版本直接运行 `node scripts/x-scout.mjs <命令>`，无需安装依赖。
+
+</details>
+
+### 开启搜索
+
+读取和审查账号开箱即用。如需开启语义搜索：
+
+1. 在 [console.x.ai](https://console.x.ai) 申请 API key。
+2. 保存 key 并检查：
 
 ```bash
 npx -y github:JunJayDev/x-scout setup      # 保存到 ~/.config/x-scout/config.env（权限 600）
-npx -y github:JunJayDev/x-scout doctor     # 检查 key 和每个读取数据源
+npx -y github:JunJayDev/x-scout doctor     # 检查 key 与各读取数据源
 ```
 
-也可以在环境变量中设置 `XAI_API_KEY`。要让远程服务器也能搜索，再运行一次 `deploy`。
+也可以在环境中设置 `XAI_API_KEY`。重新运行 `deploy` 会将密钥同步至远程 Worker。
+
+未配置 key 时，读取与账号审查功能依然可用，skill 会自动回退到网络搜索（`site:x.com ...`）配合 `x_read`。
+
+高级选项：`setup --base-url <url>`（或 `XAI_API_BASE`）支持对接兼容 xAI Responses API 的端点；`XAI_MODEL` 指定模型（默认 `grok-4.7`）。`deploy` 会把这些设置同步给远程服务器。
 
 ## 快速上手
 
-用 `npm install -g https://github.com/JunJayDev/x-scout/archive/refs/heads/main.tar.gz` 安装命令，或者把下面的 `x-scout` 换成 `npx -y github:JunJayDev/x-scout`。
+全局安装 CLI：
+
+```bash
+npm install -g https://github.com/JunJayDev/x-scout/archive/refs/heads/main.tar.gz
+```
+
+或直接执行 `npx -y github:JunJayDev/x-scout <命令>`。
 
 ```bash
 x-scout read https://x.com/karpathy/status/2039805659525644595
-x-scout read <帖子链接> --replies --max-replies 30      # 纠错常常在回复里
+x-scout read <帖子链接> --replies --max-replies 30      # 纠错与补充讨论通常在回复中
 x-scout read @handle --posts 30
 x-scout audit @handle
 x-scout search "bun 1.3 production" "migrated from node to bun" --from 2026-09-01
-x-scout search "remotion agent" "AI 视频 剪辑 agent" --handle remotion --json
+x-scout search "remotion agent" "AI 视频 剪辑 agent" --handle remotion --json      # 每种语言各写一条查询
 ```
 
-读一条帖子的输出：
+`x-scout read` 实际输出：
 
 ```text
 [1] @karpathy · Andrej Karpathy · 4.4M followers · 2026-04-02 20:42Z
@@ -108,76 +211,95 @@ LLM Knowledge Bases
 ...
 ```
 
-## 工具
+## 工具列表
 
-| 工具 | 作用 | key |
+| 工具 | 作用 | Key |
 |---|---|---|
-| `x_read` | 1 到 10 个帖子链接、帖子 id、主页链接或 @handle。`mode` 可选 `post`、`thread`、`replies`。主页最多带 100 条最近的帖子。可选翻译。 | 不需要 |
-| `x_search` | 2 到 5 条查询；`from_date` 和 `to_date`（含当天）；最多 20 个限定或排除的账号；图片和视频理解。每条结果都回 X 重读。 | `XAI_API_KEY` |
-| `x_audit` | 一个账号最近 10 到 100 条帖子：发帖频率、构成、原创浏览的中位数和 p90、每千粉丝点赞数、save 和 talk、外链占比、爆款倍数、按浏览和按收藏排序的帖子、X 的「关于此账号」信息和提示。 | 不需要 |
+| `x_read` | 1 到 10 个帖子链接、帖子 ID、主页链接或 @handle。`mode` 可选 `post`、`thread`、`replies`。主页最多带 100 条最近的帖子。可选翻译。 | 不需要 |
+| `x_search` | 2 到 5 条查询；`from_date` 和 `to_date`（含当天）；最多 20 个限定或排除的账号；图片和视频理解；单条查询最多返回 20 条结果。前 20 条结果回 X 重读，未核验项单独标注。 | `XAI_API_KEY` |
+| `x_audit` | 一个账号最近 10 到 100 条帖子：发帖频率、构成、原创浏览的中位数和 p90、每千粉丝点赞数、save 和 talk 比值、外链占比、爆款倍数、按浏览和按收藏排序的帖子、X 的「关于此账号」信息和提示。 | 不需要 |
 
-三个工具都接受 `format: "json"`，返回完整结构。skill（[`SKILL.md`](skills/x-scout/SKILL.md)）告诉 agent 什么时候用哪个工具、怎么写查询、怎么判断返回的内容。
+三个工具均支持 `format: "json"` 参数以获取结构化数据。
 
-## 怎么判断
+每条帖子计算的指标：
+- `save`：收藏 / 点赞（反映留存价值与实用性）
+- `talk`：回复 / 点赞（回复多但收藏少通常提示争议或钓互动）
+- `spread`：（转发 + 引用）/ 点赞（扩散速率）
+- `eng`：互动总量 / 浏览量（互动密度）
 
-skill 的流程：先想清楚谁会有第一手信息；按好帖子的写法去搜（产品名、版本、数字，每种语言都搜）；读原帖，包括回复；分开判断价值和传播；引用一个账号之前先查它；回答时写明链接、作者和日期；把结论记进一个来源文件。细节都不长：
+## 价值判断体系
 
-- [judging.md](skills/x-scout/references/judging.md)：价值评分表、问题清单、账号结论。
-- [signals.md](skills/x-scout/references/signals.md)：每个数字是什么意思，什么时候会误导。
-- [x-algorithm.md](skills/x-scout/references/x-algorithm.md)：X 推荐代码奖励什么，按文件核对。
-- [x-rules.md](skills/x-scout/references/x-rules.md)：X 禁止自动化工具做什么。
+skill（[`SKILL.md`](skills/x-scout/SKILL.md)）建立了系统的判断流程：
 
-同一套判断也用于你自己的草稿：skill 先查价值，再对照 X 代码已知的偏好检查传播，草稿是在钓互动时会直接指出。
+1. **锁定一手信息源**：先判断谁会掌握第一手事实（维护者、测试运行者、涉事项目方）。
+2. **按专业技术词检索**：使用精准的产品名、版本号、机制词，跨语言检索。
+3. **阅读一手原帖与回复**：使用 `x_read` 完整阅读，纠错与补充在回复中。
+4. **分开评估价值与传播**：价值看亲历、具体、可核验、新颖、有用；传播看曝光量。识别钓互动、搬运清单、截图不注出处、蹭大号流量、AI 注水等问题。
+5. **审查账号基线**：引用账号前运行 `x_audit`，与账号自身的历史中位数比，而非与大号比。
+6. **给出回答**：注明链接、作者和发布时间，如实披露未核实线索。
+7. **沉淀结论**：将评估过的账号记录到来源文件（`x-sources.md`）。
 
-## 费用
+参考文档：
+- [judging.md](skills/x-scout/references/judging.md)：价值评分表、问题清单、账号审查标准。
+- [signals.md](skills/x-scout/references/signals.md)：各数据指标释义与失真场景。
+- [x-algorithm.md](skills/x-scout/references/x-algorithm.md)：X 开源推荐代码中的确切权重（回复权重 5，复制链接 20，点赞 0.66，收藏 0）。
+- [x-rules.md](skills/x-scout/references/x-rules.md)：平台自动化规则限制。
 
-| | 费用 |
+**草稿评估**：同一套标准可用于检查自己的发帖草稿，先核验实质价值，再对照算法机制优化表达，明确指出钓互动行为。
+
+**安全准则**：x-scout 绝不登录，也绝不在 X 上执行任何写操作（无自动化点赞、批量关注或未批准的回复机器人）。它仅提供链接建议，由用户手动点击。
+
+## 费用说明
+
+| 项目 | 费用 |
 |---|---|
-| 读取和查账号 | 免费。使用公开服务；FxTwitter 允许每个 IP 每分钟 1,000 次请求。 |
-| 搜索 | xAI 按其模型抓取的帖子收费，约每 1,000 条 5 美元，另加 token。每条查询最多 2 轮搜索，输出会报告抓取了多少条帖子。 |
+| 读取与审查 | 免费。使用公开服务；FxTwitter 允许每个 IP 每分钟 1,000 次请求。 |
+| 搜索 | xAI 按模型抓取的帖子收费，约每 1,000 条 5 美元，另加 token 费用。每条查询最多 2 轮搜索，通常抓取 10 到 60 条帖子（耗时约 30 秒至 2.5 分钟）。输出会注明抓取帖数。 |
 | 远程服务器 | Cloudflare Workers 免费套餐：每天 100,000 次请求。 |
-| token | 一条短帖不到 100 个 token；长帖和 X Article 大致等于正文长度；一次账号检查约 600 到 1,000 个 token。 |
+| Token 消耗 | 短帖低于 100 token；账号审查约 600 至 1,000 token。 |
 
-## 限制
+## 能力边界
 
-- 读取依赖别人运营的公开服务（FxTwitter、vxTwitter）和 X 的嵌入接口，任何一个都可能失效或关闭；回退对单条帖子最有效。FxTwitter 自己的搜索从 2026-10-09 起一直不可用，所以搜索走 xAI。
-- 回退数据源没有浏览数和收藏数，X 的嵌入接口会截断长帖。输出会写明。
-- 能拿到的回复比 X 显示的少：被隐藏、受保护和已删除的回复拿不到。
-- 搜索质量取决于 Grok，每次结果会有差异，所以每条结果都要核对。
-- 没有 For You 信息流、通知和私信，也不在 X 上执行任何操作，这是有意的设计。
-- 判断是给 agent 的方法，不是分类器，可能出错。遇到这种情况请用 [判断问题模板](.github/ISSUE_TEMPLATE/judging.md) 提交。
+- 读取依赖第三方公开服务（FxTwitter、vxTwitter）及 X 官方嵌入接口。回退数据源缺少浏览量和收藏量，X 嵌入接口会截断长帖。
+- 回复获取受限：被隐藏、受保护及已删除的回复无法获取。
+- 搜索质量取决于 Grok，不同批次可能存在波动，因此所有命中项均回 X 重新读取核对。
+- 不读 For You 推荐流、通知和私信，也不在 X 上做任何操作。这是有意的设计。
+- 评估体系是面向 Agent 的方法论，并非绝对分类器。如遇误判可通过 [判断问题模板](.github/ISSUE_TEMPLATE/judging.md) 反馈。
 
 ## 作为库使用
 
-先运行 `npm install github:JunJayDev/x-scout`，然后：
+安装：
 
-```js
+```bash
+npm install github:JunJayDev/x-scout
+```
+
+```javascript
 import { makeContext, runRead, runAudit } from "x-scout";
+
 const ctx = makeContext(process.env);
 const { items } = await runRead({ targets: ["https://x.com/jack/status/20"] }, ctx);
 ```
 
-`x-scout/worker` 导出 Cloudflare Worker，方便自己托管。
+`x-scout/worker` 导出 Cloudflare Worker 处理函数，方便自行托管。
 
 ## 相关项目
 
-给 agent 读 X 的工具不少，判断读到的内容的工具很少。x-scout 把价值和传播分开，把每条搜索结果回 X 核对，把账号和它自己的基线比较，并用同一套判断检查你的草稿。星标数截至 2026-10-15。
+- [FxEmbed](https://github.com/FxEmbed/FxEmbed)（FxTwitter）：主要读取源，大用量建议自建。
+- [x-reader](https://github.com/runesleo/x-reader) 与 [x-md](https://github.com/pc-style/x-md)：Agent 阅读工具与 skill；x-md 通过自建账号池提供免 key 搜索；x-reader 启发了 [INSTALL.md](INSTALL.md)。
+- [Agent-Reach](https://github.com/Panniantong/Agent-Reach)：多平台阅读工具。其 X 搜索依赖用户账号 cookie；x-scout 不触碰用户账号。
+- [twitterapi.io MCP](https://github.com/kaitoInfra/twitterapi-io-mcp-server)：商业 X 数据 API，适合大批量读取。
+- [bangermeter](https://github.com/itsryanlenk/bangermeter)：对照 X 开源权重计算传播潜力。x-scout 仅记录传播指标，对实质价值打分。
+- [twag](https://github.com/clifton/twag)：LLM 分诊推文，对观点复述封顶，维护账号滚动平均。
+- [bullshit-detector](https://github.com/SerhiiKorniienko/bullshit-detector)：逐项核对主张，本项目的评分表参考了其两项核心提问。
+- [Bouncer](https://github.com/imbue-ai/bouncer)：以自然语言规则过滤信息流。作用于时间线；x-scout 用于回答具体问题。
 
-- [FxEmbed](https://github.com/FxEmbed/FxEmbed)（FxTwitter）：本项目主要的读取数据源。用量大时，维护者建议自建。
-- [x-reader](https://github.com/runesleo/x-reader) 和 [x-md](https://github.com/pc-style/x-md)：给 agent 读 X（以及其他平台），带 MCP 服务器和 skill。x-md 还通过自己运营的账号池提供免 key 搜索；x-reader 给 agent 写的安装说明启发了 [INSTALL.md](INSTALL.md)。
-- [Agent-Reach](https://github.com/Panniantong/Agent-Reach)：一次安装读取多个平台。它的 X 搜索使用你自己的 X cookie；x-scout 不碰你的账号。
-- [twitterapi.io MCP](https://github.com/kaitoInfra/twitterapi-io-mcp-server)：付费的 X 数据 API，带读取工具，适合大量读取。
-- [bangermeter](https://github.com/itsryanlenk/bangermeter)：用 X 公开的权重给帖子的传播打分，并引用源码行。x-scout 只描述传播，给价值打分。
-- [twag](https://github.com/clifton/twag)：用 LLM 给推文分诊，分数有上限（复述已知观点会被封顶），账号保留滚动平均。
-- [bullshit-detector](https://github.com/SerhiiKorniienko/bullshit-detector)：逐条核查文本中的主张。评分表借用了它的两个问题：作者在卖什么；哪些主张撑起了这条帖子。
-- [Bouncer](https://github.com/imbue-ai/bouncer)：用你自己用大白话写的类别过滤信息流。它作用于时间线；x-scout 用来回答问题。
-
-x-scout 属于「agent 媒介素养」系列。[github-scout](https://github.com/JunJayDev/github-scout) 用同样的思路处理 GitHub：agent 动手做之前，先找开源世界已经解决了什么。
+属于「Agent 媒介素养」系列。[github-scout](https://github.com/JunJayDev/github-scout) 在 GitHub 上运用相同思路：在 Agent 动手写代码前，先检索开源领域已有方案。
 
 ## 参与贡献
 
-欢迎提交 issue 和 pull request，见 [CONTRIBUTING.md](CONTRIBUTING.md)。测试离线运行：`node --test`。
+欢迎提交 issue 和 pull request，见 [CONTRIBUTING.md](CONTRIBUTING.md)。测试支持离线运行：`node --test`。
 
-## 许可证
+## 开源协议
 
 MIT，见 [LICENSE](LICENSE)。

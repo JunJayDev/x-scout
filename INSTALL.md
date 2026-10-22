@@ -24,6 +24,9 @@ fetches." If they give you a key, save it without echoing it:
 printf '%s' "$KEY" | npx -y github:JunJayDev/x-scout setup
 ```
 
+If they use an endpoint that speaks xAI's API instead of xAI itself, add `--base-url <url>`
+(and `--model <name>` if its model is not `grok-4.7`).
+
 Never write the key into the repository, a chat log or a command line that is saved in history.
 
 ## 3. Remote server (only if they use claude.ai, ChatGPT or a phone)

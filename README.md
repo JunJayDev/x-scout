@@ -1,32 +1,12 @@
+**English** · [中文](README.zh-CN.md)
+
 # x-scout
 
-**Agents can't open x.com, and when they search X they find whatever is loudest. x-scout
-lets them read any X link, search X by meaning with every hit checked against X itself, and
-judge posts and accounts on value, not reach.**
+X (Twitter) research for AI agents: read any post without login, search with every hit checked on X, judge value apart from reach.
 
-It is an agent skill with three tools: `x_read`, `x_search` and `x_audit`. Install it as a
-Claude Code plugin, run it as a local MCP server for any client, call it as a CLI, or put it
-on your own Cloudflare account in one command and use it from claude.ai, ChatGPT and your
-phone. Reading needs no key and no X account. Searching needs an xAI API key.
+[![CI](https://github.com/JunJayDev/x-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/JunJayDev/x-scout/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-[中文说明](README.zh-CN.md)
-
-## Why
-
-On X, the people who build things often post first: the maintainer explains the bug, the
-founder shares the real numbers, the researcher posts the chart before the paper. The same
-feed is full of reach bought with hooks, follow-back rings, recycled threads and AI slop.
-
-Agents are bad at both halves. They cannot read X at all, because x.com needs a login and
-JavaScript. When they do find posts, through web search or a search model, they treat what
-travelled furthest as what matters, and quote search summaries as if they were the posts.
-
-X's own open-source ranking code shows why reach and value come apart. A reply weighs 5, a
-copied link 20, a like 0.66. Bookmarks, the plainest sign that a post is worth keeping, weigh
-nothing ([details](skills/x-scout/references/x-algorithm.md)). What spreads is what makes
-people react. What is useful is what people save.
-
-On one account, the difference looks like this:
+x-scout provides AI agents with three MCP tools (`x_read`, `x_search`, `x_audit`), an evaluation skill that scores substance separately from engagement metrics, and a CLI. It runs locally via stdio MCP, CLI, or Claude Code plugin, or deploys to your own Cloudflare account for claude.ai, ChatGPT, and mobile apps. Reading and auditing require no account and no API key; semantic search uses xAI's Grok to find leads and re-reads every hit directly from X.
 
 ```text
 $ x-scout audit @karpathy
@@ -42,101 +22,184 @@ top by saves (bookmarks/likes):
   LLM Knowledge Bases Something I'm finding very useful recently: using LLMs to build personal ...
 ```
 
-The post that travelled furthest was news. The post people kept, with more bookmarks than
-likes, was a method. An agent that ranks by views reads the first; one that wants to learn
-should read the second.
-
-## What it does differently
-
-- **Reads X without logging in.** Posts with full text and every count (views, likes, replies,
-  reposts, quotes, bookmarks), threads, replies, quoted posts, polls, community notes and the
-  full text of X Articles; profiles with recent posts. Three public sources with fallbacks, and
-  each answer says which source it came from and what a fallback could not provide.
-- **Search hits are leads, not quotes.** `x_search` asks Grok's `x_search` tool, then re-reads
-  every hit from X. Text, author, time and counts come from the post itself. A hit X cannot
-  confirm stays in the answer, marked unverified, with the search model's words labelled as such.
-- **Two scores, never one.** The skill judges value (first-hand, specific, checkable, new,
-  useful) and reach (views, spread) separately, and names the flags: bait, recycled lists,
-  borrowed reach, AI slop. Every post carries three ratios: `save` (bookmarks/likes), `talk`
-  (replies/likes) and `spread` (reposts and quotes per like).
-- **Accounts against their own baseline.** `x_audit` reads an account's originals and its
-  replies, then compares each post with the account's own median, not with famous accounts.
-  One viral post is not a track record.
-- **Recommends, never acts.** X forbids automated likes, bulk follows and AI reply bots
-  without approval. x-scout never logs in and never touches your account. It gives you
-  the links; you click.
-- **Written for agents to read.** Tool output is compact text: no empty fields, short numbers,
-  the post text verbatim. JSON is one flag away.
+The post that travelled furthest was news (47.7x the account's median views). The post people kept, with more bookmarks than likes, was a method. X's open-source ranking code weighs a reply 5, a copied link 20, a like 0.66 and a bookmark 0: what spreads is what makes people react, what is useful is what people save. x-scout scores the two apart.
 
 ## Install
 
-Pick one. An agent can do any of these for you: tell it "install x-scout, following
-https://github.com/JunJayDev/x-scout/blob/main/INSTALL.md". The only human steps are pasting
-an xAI key (optional) and, for the remote server, clicking "Allow" on Cloudflare once.
+You can let an agent install x-scout for you: *"install x-scout, following https://github.com/JunJayDev/x-scout/blob/main/INSTALL.md"*.
 
-**Claude Code plugin** (skill and tools together)
+Recommended installation path by client:
+- **Claude Code**: install the marketplace plugin for tools and skill together.
+- **Codex**: configure the MCP server for tools and marketplace plugin for the skill.
+- **Cursor, VS Code, Claude Desktop, and other MCP clients**: configure the stdio MCP server.
+- **claude.ai, ChatGPT, and phones**: deploy a remote worker to Cloudflare in one command.
+- **Agents without MCP support**: copy the self-contained skill folder.
 
-```
+<details>
+<summary>Claude Code</summary>
+
+Install the plugin (bundles skill and MCP server, prompts for an optional xAI key and stores it in the system keychain):
+
+```bash
 /plugin install x-scout --marketplace JunJayDev/x-scout
 ```
 
-On Claude Code older than 2.1.275: `/plugin marketplace add JunJayDev/x-scout`, then
-`/plugin install x-scout@x-scout`. The plugin asks for an optional xAI key and keeps it
-in your system keychain.
-
-**Codex plugin** (the skill): `codex plugin marketplace add JunJayDev/x-scout`, then install
-x-scout from the plugin list. For the tools, add the MCP server below.
-
-**Any MCP client** (Codex, Cursor, Claude Desktop, Claude Code without the plugin...)
+On Claude Code versions older than 2.1.275:
 
 ```bash
-claude mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp      # Claude Code
-codex mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp       # Codex
+/plugin marketplace add JunJayDev/x-scout
+/plugin install x-scout@x-scout
 ```
 
-Other clients: command `npx`, arguments `-y github:JunJayDev/x-scout mcp`. Requires Node 18 or newer.
+Or add the MCP server alone without the plugin:
 
-**Skill only.** Copy [`skills/x-scout/`](skills/x-scout/) into your agent's skills
-folder (`~/.claude/skills/`, `.agents/skills/`...). It is self-contained: the agent runs
-`node scripts/x-scout.mjs <command>` from it, with nothing to install.
+```bash
+claude mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp
+```
 
-**claude.ai, ChatGPT, phones** (a remote MCP server on your Cloudflare account; the free plan
-is enough)
+</details>
+
+<details>
+<summary>Codex</summary>
+
+Add the MCP server for tools:
+
+```bash
+codex mcp add x-scout -- npx -y github:JunJayDev/x-scout mcp
+```
+
+Add the skill via the marketplace:
+
+```bash
+codex plugin marketplace add JunJayDev/x-scout
+```
+
+Then install `x-scout` from the plugin list.
+
+</details>
+
+<details>
+<summary>Cursor</summary>
+
+Add to `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "x-scout": {
+      "command": "npx",
+      "args": ["-y", "github:JunJayDev/x-scout", "mcp"]
+    }
+  }
+}
+```
+
+To enable search in Cursor, add `"env": {"XAI_API_KEY": "xai-..."}` inside the `x-scout` block.
+
+</details>
+
+<details>
+<summary>VS Code</summary>
+
+Add to `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "x-scout": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "github:JunJayDev/x-scout", "mcp"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary>Claude Desktop and other MCP clients</summary>
+
+Standard configuration for clients supporting stdio MCP (command `npx`, arguments `["-y", "github:JunJayDev/x-scout", "mcp"]`):
+
+```json
+{
+  "mcpServers": {
+    "x-scout": {
+      "command": "npx",
+      "args": ["-y", "github:JunJayDev/x-scout", "mcp"]
+    }
+  }
+}
+```
+
+To enable search, add `"env": {"XAI_API_KEY": "xai-..."}` inside the server entry. Requires Node 18 or newer.
+
+</details>
+
+<details>
+<summary>claude.ai, ChatGPT and phones (remote deploy)</summary>
+
+Deploy a remote MCP server to your own Cloudflare account (the free plan is sufficient):
 
 ```bash
 npx -y github:JunJayDev/x-scout deploy
 ```
 
-It logs you in to Cloudflare (a browser opens once), deploys, uploads secrets through stdin,
-tests the server from its public URL and prints a connector URL. Add it in claude.ai as a
-custom connector, or in ChatGPT as a connector in developer mode; no sign-in needed. Connectors
-added on the web work in the mobile apps too. `--rotate` issues a new URL; `--check` tests it again.
+A browser opens once to log in to Cloudflare. The command deploys the worker, pipes secrets via stdin, runs a smoke test against the public URL, and outputs a connector URL:
+`https://x-scout.<your-subdomain>.workers.dev/mcp/<token>`
 
-**Turn on search** (optional): get an API key at [console.x.ai](https://console.x.ai), then
+Add this URL in claude.ai as a custom connector, or in ChatGPT as a developer-mode connector. No client login is required. Connectors added on the web sync to mobile apps.
+
+Run with `--rotate` to generate a new token, or `--check` to re-test the endpoint. Run `deploy` again after updating keys.
+
+</details>
+
+<details>
+<summary>Skill only</summary>
+
+Copy [`skills/x-scout/`](skills/x-scout/) into your agent's skills directory (`~/.claude/skills/`, `~/.codex/skills/`, or `.agents/skills/`). The skill is self-contained: the agent executes `node scripts/x-scout.mjs <command>` directly using Node 18 or newer, with no packages to install.
+
+</details>
+
+### Turn on search
+
+Reading and auditing operate without configuration. To turn on semantic search:
+
+1. Obtain an API key from [console.x.ai](https://console.x.ai).
+2. Save and test credentials:
 
 ```bash
-npx -y github:JunJayDev/x-scout setup      # saves it to ~/.config/x-scout/config.env (mode 600)
-npx -y github:JunJayDev/x-scout doctor     # checks the key and every read source
+npx -y github:JunJayDev/x-scout setup      # saves to ~/.config/x-scout/config.env (mode 600)
+npx -y github:JunJayDev/x-scout doctor     # tests key and read sources
 ```
 
-Or set `XAI_API_KEY` in the environment. Run `deploy` again to give the remote server the key.
+Alternatively, set `XAI_API_KEY` in your environment. Run `deploy` again to sync the key to your remote worker.
+
+Without a key, reading and auditing remain fully functional, and the skill falls back to web searches (`site:x.com ...`) followed by `x_read`.
+
+Advanced options: `setup --base-url <url>` (or `XAI_API_BASE`) configures custom endpoints speaking xAI's Responses API; `XAI_MODEL` specifies the model (default: `grok-4.7`). `deploy` forwards these settings to your remote server.
 
 ## Quick start
 
-Install the command with
-`npm install -g https://github.com/JunJayDev/x-scout/archive/refs/heads/main.tar.gz`, or write
-`npx -y github:JunJayDev/x-scout` in place of `x-scout`.
+Install the CLI globally:
+
+```bash
+npm install -g https://github.com/JunJayDev/x-scout/archive/refs/heads/main.tar.gz
+```
+
+Or invoke directly with `npx -y github:JunJayDev/x-scout <command>`.
 
 ```bash
 x-scout read https://x.com/karpathy/status/2039805659525644595
-x-scout read <post-url> --replies --max-replies 30      # the corrections live in replies
+x-scout read <post-url> --replies --max-replies 30      # inspect corrections and nuance
 x-scout read @handle --posts 30
 x-scout audit @handle
 x-scout search "bun 1.3 production" "migrated from node to bun" --from 2026-09-01
-x-scout search "remotion agent" "AI 视频 剪辑 agent" --handle remotion --json
+x-scout search "remotion agent" "AI 视频 剪辑 agent" --handle remotion --json      # one query per language
 ```
 
-A read looks like this:
+Real output of `x-scout read`:
 
 ```text
 [1] @karpathy · Andrej Karpathy · 4.4M followers · 2026-04-02 20:42Z
@@ -150,98 +213,92 @@ LLM Knowledge Bases
 
 ## Tools
 
-| tool | does | key |
+| Tool | Capabilities | Key |
 |---|---|---|
-| `x_read` | 1-10 post URLs, ids, profile URLs or @handles. `mode`: `post`, `thread`, `replies`. Profiles with up to 100 recent posts. Optional translation. | none |
-| `x_search` | 2-5 queries, `from_date`/`to_date` (inclusive), up to 20 allowed or excluded handles, image and video understanding. Every hit re-read from X. | `XAI_API_KEY` |
-| `x_audit` | an account's last 10-100 posts: cadence, mix, median and p90 views, likes per 1k followers, save and talk, link-out share, breakout, top posts by views and by saves, X's "About this account", hints. | none |
+| `x_read` | 1-10 post URLs, IDs, profile URLs or @handles. Mode: `post`, `thread`, `replies`. Profiles with up to 100 recent posts. Optional translation. | None |
+| `x_search` | 2-5 queries, `from_date`/`to_date` (inclusive), up to 20 allowed or excluded handles, image and video understanding, `max_results` up to 20 per query. First 20 hits re-read from X; unconfirmed hits are kept and marked unverified. | `XAI_API_KEY` |
+| `x_audit` | Reads an account's last 10-100 posts: cadence, mix, median and p90 views, likes per 1k followers, save and talk ratios, link-out share, breakout multiplier, top posts by views and by saves, X's "About this account", hints. | None |
 
-All three take `format: "json"` for the full structure. The skill
-([`SKILL.md`](skills/x-scout/SKILL.md)) tells the agent when to use which, how to write
-queries, and how to judge what comes back.
+All three tools take `format: "json"` for structured output.
+
+Signals computed on every post:
+- `save`: bookmarks / likes (measures retention and reference value)
+- `talk`: replies / likes (elevated talk with low save flags debate or bait)
+- `spread`: (reposts + quotes) / likes (amplification rate)
+- `eng`: engagements / views (interaction density)
 
 ## How judging works
 
-The skill's loop: decide who would know first-hand; search the way a good post is written
-(names, versions, numbers, in each language); read the source, including replies; judge value
-and reach separately; audit the account before citing it; answer with URLs, authors and dates;
-remember verdicts in a sources file. The details are short and worth reading:
+The evaluation skill ([`SKILL.md`](skills/x-scout/SKILL.md)) defines a systematic loop:
 
-- [judging.md](skills/x-scout/references/judging.md): the value sheet, the flags, verdicts for accounts.
-- [signals.md](skills/x-scout/references/signals.md): what each number means and when it lies.
-- [x-algorithm.md](skills/x-scout/references/x-algorithm.md): what X's ranking code rewards, checked file by file.
-- [x-rules.md](skills/x-scout/references/x-rules.md): what X forbids automated tools to do.
+1. **Identify primary sources**: Determine who would know first-hand (maintainers, incident responders, benchmark authors).
+2. **Search by technical terms**: Query specific names, versions, and mechanisms across languages.
+3. **Read primary sources**: Inspect full posts and replies with `x_read`. Corrections and clarifications appear in replies.
+4. **Separate value and reach**: Reach measures exposure; value measures substance (first-hand, specific, checkable, novel, actionable). Identify flags like engagement bait, recycled lists, uncredited screenshots, borrowed reach, and synthetic padding.
+5. **Audit accounts**: Run `x_audit` before citing an account as authoritative. Compare posts to the creator's own baseline, not celebrity accounts.
+6. **Report findings**: Attribute URLs, authors, and dates. Disclose unverified leads.
+7. **Persist verdicts**: Record judged accounts in a local sources file (`x-sources.md`).
 
-The same judgment applies to your own drafts: the skill checks a post for value first, then
-for what X's code is known to reward, and says so when a draft is bait.
+Reference documentation:
+- [judging.md](skills/x-scout/references/judging.md): Value scoring sheet, warning flags, account evaluation criteria.
+- [signals.md](skills/x-scout/references/signals.md): Metric definitions and distortion cases.
+- [x-algorithm.md](skills/x-scout/references/x-algorithm.md): Weights from X's open-source ranking code (reply: 5, copied link: 20, like: 0.66, bookmark: 0).
+- [x-rules.md](skills/x-scout/references/x-rules.md): Platform automation rules and restrictions.
 
-## What it costs
+**Draft evaluation**: The skill evaluates post drafts against the same standards: verifying substance first, then checking structure against algorithmic factors without writing engagement bait.
 
-| | cost |
+**Platform safety**: x-scout never logs in and never executes actions on X (no automated likes, bulk follows, or unapproved AI reply bots). It recommends links; the user clicks.
+
+## Costs
+
+| Operation | Cost |
 |---|---|
-| reading and auditing | free. Public services; FxTwitter allows 1,000 requests a minute per IP. |
-| searching | xAI bills about $5 per 1,000 posts its model fetches, plus tokens. Each query is capped at 2 search rounds; the output reports how many posts were fetched. |
-| remote server | Cloudflare Workers free plan: 100,000 requests a day. |
-| tokens | a short post is under 100 tokens; a long post or an X Article costs about what its text costs; an audit is roughly 600-1,000. |
+| Reading & auditing | Free. Uses public endpoints; FxTwitter allows 1,000 requests per minute per IP. |
+| Searching | xAI bills about $5 per 1,000 posts fetched by the model, plus tokens. Queries cap at 2 search rounds and usually fetch 10 to 60 posts (duration: 30s to 2.5m). Output reports posts fetched. |
+| Remote server | Cloudflare Workers free plan includes 100,000 requests per day. |
+| Token footprint | Short post under 100 tokens; account audit roughly 600-1,000 tokens. |
 
 ## Limits
 
-- Reading depends on public services run by others (FxTwitter, vxTwitter) and on X's embed
-  endpoint. Any of them can break or close; the fallbacks cover single posts best. FxTwitter's
-  own search has been down since 2026-10-09, which is why search goes through xAI.
-- Fallback sources lack views and bookmarks, and X's embed endpoint cuts long posts. The output
-  says so.
-- Reply lists are shorter than X's count: hidden, protected and deleted replies are missing.
-- Search quality depends on Grok. Results vary between runs; that is why every hit is checked.
-- No For You feed, no notifications, no DMs, and no actions on X, by design.
-- The judging is a method for agents, not a classifier. It can be wrong; the
-  [judging issue template](.github/ISSUE_TEMPLATE/judging.md) is for those cases.
+- Reading relies on public services (FxTwitter, vxTwitter) and X's embed endpoint. Fallbacks lack views and bookmarks, and X's embed truncates long posts.
+- Retrieved replies exclude hidden, protected, or deleted items.
+- Search quality depends on Grok and varies between runs; every hit is re-read from X for verification.
+- No For You feed, notifications, direct messages, or write actions on X, by design.
+- Evaluation is an agent methodology, not an absolute classifier. Report incorrect assessments via the [judging issue template](.github/ISSUE_TEMPLATE/judging.md).
 
 ## Library
 
-`npm install github:JunJayDev/x-scout`, then
+Install the package:
 
-```js
+```bash
+npm install github:JunJayDev/x-scout
+```
+
+```javascript
 import { makeContext, runRead, runAudit } from "x-scout";
+
 const ctx = makeContext(process.env);
 const { items } = await runRead({ targets: ["https://x.com/jack/status/20"] }, ctx);
 ```
 
-`x-scout/worker` exports the Cloudflare Worker, if you want to host it yourself.
+`x-scout/worker` exports the Cloudflare Worker handler for custom deployments.
 
 ## Related projects
 
-Reading X for agents is a busy space. Judging what you read is not. x-scout is the one
-that keeps value and reach apart, checks every search hit against X, compares accounts with
-their own baseline, and applies the same judgment to your drafts. Star counts as of 2026-10-15.
+- [FxEmbed](https://github.com/FxEmbed/FxEmbed): Primary reading backend. Maintainers request self-hosting under high volume.
+- [x-reader](https://github.com/runesleo/x-reader) and [x-md](https://github.com/pc-style/x-md): Reading tools and skills for agents; x-md offers keyless search via pooled accounts; x-reader provided the model for [INSTALL.md](INSTALL.md).
+- [Agent-Reach](https://github.com/Panniantong/Agent-Reach): Multi-platform reader for agents. X search requires personal cookies; x-scout never touches user accounts.
+- [twitterapi.io MCP](https://github.com/kaitoInfra/twitterapi-io-mcp-server): Paid X data API with read tools for bulk collection.
+- [bangermeter](https://github.com/itsryanlenk/bangermeter): Scores reach potential using X's published ranking weights. x-scout describes reach and scores value.
+- [twag](https://github.com/clifton/twag): LLM tweet triage with score caps on restated opinions and rolling account averages.
+- [bullshit-detector](https://github.com/SerhiiKorniienko/bullshit-detector): Claim-by-claim text verification. The judging rubric borrows two diagnostic questions from it.
+- [Bouncer](https://github.com/imbue-ai/bouncer): Feed filtering using plain-language categories. Acts on timelines; x-scout answers questions.
 
-- [FxEmbed](https://github.com/FxEmbed/FxEmbed) (FxTwitter): the main read source here. If you
-  read a lot, its maintainers ask you to self-host.
-- [x-reader](https://github.com/runesleo/x-reader) and [x-md](https://github.com/pc-style/x-md):
-  read X (and more) for agents, with MCP servers and skills. x-md also searches without a key
-  through an account pool it runs; x-reader's install guide for agents inspired [INSTALL.md](INSTALL.md).
-- [Agent-Reach](https://github.com/Panniantong/Agent-Reach): one installer for reading many
-  platforms. Its X search uses your own X cookies; x-scout never touches your account.
-- [twitterapi.io MCP](https://github.com/kaitoInfra/twitterapi-io-mcp-server): a paid X data
-  API with read tools; a good choice when you need volume.
-- [bangermeter](https://github.com/itsryanlenk/bangermeter): scores a post's reach with X's
-  published weights, citing source lines. x-scout describes reach and scores value.
-- [twag](https://github.com/clifton/twag): LLM triage of tweets with capped scores (restating a
-  known view caps the score) and rolling account averages.
-- [bullshit-detector](https://github.com/SerhiiKorniienko/bullshit-detector): checks a text claim
-  by claim. The judging sheet borrows two of its questions: what is the author selling, and
-  which claims carry the post.
-- [Bouncer](https://github.com/imbue-ai/bouncer): filters your feed with categories you write in
-  plain words. It acts on a timeline; x-scout answers questions.
-
-Part of a series on media literacy for agents. [github-scout](https://github.com/JunJayDev/github-scout)
-does the same for GitHub: before an agent builds something, it finds what open source already
-solved.
+Part of an agent media literacy series. [github-scout](https://github.com/JunJayDev/github-scout) applies the same methodology to GitHub: identifying existing open-source solutions before an agent writes code.
 
 ## Contributing
 
-Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Tests run offline:
-`node --test`.
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Tests run offline: `node --test`.
 
 ## License
 
