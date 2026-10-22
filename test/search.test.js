@@ -37,7 +37,7 @@ test("xai: request shape (tool, filters, inclusive to_date, cost cap)", async ()
   assert.match(b.input[0].content, /Return links only/);
   assert.doesNotMatch(b.input[0].content, /"text"/);
   assert.deepEqual(b.include, ["no_inline_citations"]);
-  assert.equal(b.max_turns, 3);
+  assert.deepEqual(calls.map(c => c.body.max_turns), [3, 2], "queries share the five-turn budget");
   assert.equal(b.store, false);
   assert.deepEqual(b.tools, [{ type: "x_search", allowed_x_handles: ["alice", "carol"], from_date: "2026-10-01", to_date: "2026-10-15", enable_image_understanding: true }]);
   assert.match(b.input[0].content, /alpha one/);
@@ -113,9 +113,21 @@ test("xai: valid JSON selections are not padded with viewed citations", () => {
   assert.equal(parseXaiResponse({ output_text: JSON.stringify(picked), citations }, 1).results.length, 1);
 });
 
-test("only the first 20 hits are read from X; the rest are counted as not checked", () => {
-  const text = renderSearch({ provider: "xai", rounds: [], verified: 18, unverified: 2, unchecked: 7, results: [] });
-  assert.match(text, /18 full posts loaded, 2 could not be loaded, 7 not loaded \(limit 20\)/);
+test("the merged result cap is global, deduplicated and balanced before reading originals", async () => {
+  for (const [maxResults, expected] of [[undefined, 6], [4, 4], [20, 10], [1, 1]]) {
+    const fake = makeFetch({ "https://xai.test/": (url, init, body) => {
+      const offset = body.input[0].content.includes("Fixed topic: first") ? 1000 : 2000;
+      const items = [9000, ...Array.from({ length: 10 }, (_, i) => offset + i)].map(id => ({ url: `https://x.com/alice/status/${id}` }));
+      return new Response(JSON.stringify({ output_text: JSON.stringify(items) }));
+    } });
+    const ctx = makeContext(XAI, fake.fetch);
+    const r = await runSearch({ queries: ["first", "second"], max_results: maxResults }, ctx);
+    assert.equal(r.results.length, expected);
+    assert.equal(new Set(r.results.map(h => h.url)).size, expected);
+    assert.equal(fake.calls.filter(c => c.method === "GET").length, expected, "discarded candidates are not fetched");
+    assert.equal(r.results[0].post.id, "9000", "shared result appears once");
+    if (expected > 1) assert.deepEqual(r.results.slice(1, 3).map(h => h.post.id), ["1000", "2000"], "top results from both queries get room");
+  }
 });
 
 test("verify=false skips reading X", async () => {
@@ -187,12 +199,24 @@ test("original reads share one deadline across fallback sources and keep failed 
 
 
 test("a caller's explicit turn budget is used by both the API and the search instructions", async () => {
-  for (const maxTurns of [1, 2, 4]) {
+  for (const maxTurns of [1, 2, 4, 8]) {
     const { ctx, fake } = ctxWith({ ...XAI, XAI_MAX_TURNS: String(maxTurns) });
     await runSearch({ queries: ["beta"], verify: false }, ctx);
     const request = fake.calls[0].body;
-    assert.equal(request.max_turns, maxTurns);
-    assert.ok(request.input[0].content.includes(`at most ${maxTurns} assistant/tool turns`));
+    const expected = Math.min(maxTurns, 5);
+    assert.equal(request.max_turns, expected);
+    assert.ok(request.input[0].content.includes(`at most ${expected} assistant/tool turns`));
     if (maxTurns === 1) assert.doesNotMatch(request.input[0].content, /After the initial search/);
+  }
+});
+
+test("multiple queries cannot multiply the total turn budget", async () => {
+  for (const count of [1, 3, 5]) {
+    const { ctx, fake } = ctxWith(XAI);
+    await runSearch({ queries: Array.from({ length: count }, (_, i) => `query ${i}`), verify: false }, ctx);
+    const budgets = fake.calls.filter(c => c.method === "POST").map(c => c.body.max_turns);
+    assert.equal(budgets.length, count);
+    assert.ok(budgets.every(n => n >= 1));
+    assert.equal(budgets.reduce((sum, n) => sum + n, 0), 5);
   }
 });
