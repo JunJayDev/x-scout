@@ -14,8 +14,8 @@ Usage
       --posts N [--with-replies]      recent posts for profiles (default 20)
       --translate <lang>  --source <fxtwitter|vxtwitter|syndication>
   x-scout search "<query>" ["<query>"...] [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-      [--handle h]... [--exclude h]... [--max N] [--images] [--videos] [--verify]
-                                      snippets by default; --verify loads full posts (up to 20)
+      [--handle h]... [--exclude h]... [--max N] [--images] [--videos] [--no-verify]
+                                      original posts by default; --no-verify returns model snippets
                                       needs XAI_API_KEY (x-scout setup)
   x-scout audit <@handle|url> [--posts N]
   x-scout mcp                         run as a local MCP server (stdio)
@@ -121,7 +121,7 @@ export async function main(argv = process.argv.slice(2), out = (s) => process.st
         excluded_x_handles: flags.exclude,
         enable_image_understanding: Boolean(flags.images),
         enable_video_understanding: Boolean(flags.videos),
-        verify: Boolean(flags.verify) && !flags["no-verify"],
+        verify: !flags["no-verify"],
       }, flags, out);
     }
     case "audit": {

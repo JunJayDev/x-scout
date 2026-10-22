@@ -33,6 +33,9 @@ test("xai: request shape (tool, filters, inclusive to_date, cost cap)", async ()
   assert.equal(calls.length, 2);
   const b = calls[0].body;
   assert.equal(b.model, "grok-4.7");
+  assert.deepEqual(b.reasoning, { effort: "low" });
+  assert.match(b.input[0].content, /Return links only/);
+  assert.doesNotMatch(b.input[0].content, /"text"/);
   assert.deepEqual(b.include, ["no_inline_citations"]);
   assert.equal(b.max_turns, 2);
   assert.equal(b.store, false);
@@ -53,7 +56,7 @@ test("xai: merge, verify against X, keep unverified leads", async () => {
   assert.equal(r.results[0].lead, undefined);
   // the invented post cannot be confirmed
   assert.match(byId["404"].unverified, /not found/);
-  assert.equal(byId["404"].lead.snippet, "invented");
+  assert.equal(byId["404"].lead, undefined, "failed reads keep links, not invented model text");
   // Viewed citations do not override the model's selected results.
   assert.equal(byId["7"], undefined);
   assert.equal(r.verified, r.results.length - 1);
@@ -62,7 +65,7 @@ test("xai: merge, verify against X, keep unverified leads", async () => {
   assert.match(text, /full posts loaded, 1 could not be loaded/);
   assert.doesNotMatch(text, /not checked/);
   assert.match(text, /https:\/\/x\.com\/ghost\/status\/404/);
-  assert.match(text, /invented/);
+  assert.doesNotMatch(text, /invented/);
   assert.match(text, /25 posts fetched by the search model/);
 });
 
@@ -133,9 +136,9 @@ test("unexpected authors, redirects, no key", async () => {
 });
 
 
-test("search filters use snippet metadata by default and full post metadata when loaded", async () => {
+test("search filters use snippet metadata in preview mode and prefer original metadata when loaded", async () => {
   const { ctx } = ctxWith(XAI);
-  const range = { queries: ["beta"], from_date: "2026-10-11", to_date: "2026-10-13" };
+  const range = { queries: ["beta"], verify: false, from_date: "2026-10-11", to_date: "2026-10-13" };
   const snippets = await runSearch(range, ctx);
   assert.equal(snippets.results.length, 2, "inclusive date bounds preserve both endpoints");
   const excluded = await runSearch({ ...range, excluded_x_handles: ["ALICE"] }, ctx);
@@ -155,4 +158,28 @@ test("citation fallback is bounded and accepts only X post URLs", () => {
   const r = parseXaiResponse({ output_text: "Here are the links", citations }, 1);
   assert.deepEqual(r.results.map(h => h.url), ["https://x.com/a/status/1"]);
   assert.deepEqual(parseXaiResponse({ output_text: "[]", citations }).results, []);
+});
+
+
+test("model overrides do not receive unsupported reasoning settings", async () => {
+  const { ctx, fake } = ctxWith({ ...XAI, XAI_MODEL: "custom-model" });
+  await runSearch({ queries: ["beta"], verify: false }, ctx);
+  assert.equal(fake.calls[0].body.reasoning, undefined);
+});
+
+test("original reads share one deadline across fallback sources and keep failed links", async () => {
+  const fake = makeFetch({
+    "https://fx.test": (url, init) => new Promise((resolve, reject) => {
+      const fail = () => reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+      if (init.signal.aborted) fail();
+      else init.signal.addEventListener("abort", fail, { once: true });
+    }),
+  });
+  const ctx = makeContext(XAI, fake.fetch);
+  ctx.deadline = Date.now() + 40;
+  const r = await runSearch({ queries: ["beta"] }, ctx);
+  assert.equal(r.results.length, 2);
+  assert.equal(r.verified, 0);
+  assert.ok(r.results.every(h => h.url && /budget exhausted/.test(h.unverified)));
+  assert.ok(!fake.calls.some(c => c.url.startsWith("https://vx.test") || c.url.startsWith("https://synd.test")), "no further requests after the shared deadline");
 });

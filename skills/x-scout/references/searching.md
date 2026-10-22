@@ -4,15 +4,17 @@
 
 Each query goes to xAI's Responses API with the `x_search` tool. Grok decides how to search:
 keyword search with X's operators (Top or Latest), semantic search, user search, or fetching a
-thread. By default, x-scout returns the model's selected post links, authors, dates and
-snippets. It does not make a separate read request for every hit. A valid empty selection
+thread. By default, it returns selected post links only, without copying or summarizing the
+post text. x-scout loads up to 20 originals through its public readers, five at a time, within
+a shared 8-second budget. Failed reads retain the link and a reason. A valid empty selection
 stays empty; citations are only a fallback when no JSON array can be parsed.
 
-Use `x_read` for selected results that need full text, threads or replies. Use `verify: true`
-(CLI `--verify`) to load up to 20 full posts in the search call. This retrieves content and
-metrics, not a truth judgment. It adds latency. Missing full posts retain their snippets and
-a read error. Dates and handle filters are applied to available metadata; loaded post
-metadata takes precedence over the search model's metadata.
+For Grok 4.5, 4.6 and 4.7, requests explicitly use low reasoning effort; the upstream default
+is high. Other model overrides do not receive this setting. See the [xAI reasoning guide](https://docs.x.ai/developers/model-capabilities/text/reasoning).
+
+`verify: false` (CLI `--no-verify`) retains the model-snippet mode without separate reads.
+`verify` is a legacy parameter name: loading original content does not fact-check its claims.
+Date and handle filters use the available metadata, preferring loaded original posts.
 
 Cost: xAI bills about $5 per 1,000 posts its model fetches and $10 per 1,000 profiles, plus
 tokens. Each query is capped at 2 tool rounds (`XAI_MAX_TURNS`); a query usually fetches a few
@@ -44,8 +46,7 @@ Good posts name things. Search the way the post you want would be written.
 
 ## After the search
 
-- Show the useful snippets with links; no scoring or author audit is required.
-- Read selected links only for details the snippets do not provide. Reuse full posts already
-  returned by an earlier read or by `verify: true`.
+- Show useful posts with links; no scoring or author audit is required.
+- Reuse originals already returned. Read again only for a missing post, thread or replies.
 - If results are poor, change wording or widen the date range. Retry only failed queries
   when the other queries succeeded.

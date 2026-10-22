@@ -56,7 +56,7 @@ test("read and audit through the CLI with the fake network", async (t) => {
   }
 });
 
-test("CLI: one query works, full post loading is opt-in, --no-verify stays compatible", async (t) => {
+test("CLI: one query returns originals by default and --no-verify returns snippets", async (t) => {
   const fake = makeFetch();
   t.mock.method(globalThis, "fetch", fake.fetch);
   const saved = { ...process.env };
@@ -64,8 +64,8 @@ test("CLI: one query works, full post loading is opt-in, --no-verify stays compa
   try {
     let out = "";
     await main(["search", "beta", "--json"], s => out = s);
-    assert.equal(fake.calls.length, 1);
-    assert.equal(JSON.parse(out).results[0].lead.snippet, "post 1");
+    assert.equal(fake.calls.length, 3);
+    assert.equal(JSON.parse(out).results[0].post.text, "full text of 1");
     await main(["search", "beta", "--verify", "--json"], s => out = s);
     assert.equal(JSON.parse(out).results[0].post.text, "full text of 1");
     const before = fake.calls.length;

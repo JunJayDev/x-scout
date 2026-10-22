@@ -1,5 +1,5 @@
-// x_search: find posts by meaning and return compact search snippets.
-// Loading full posts is opt-in (verify=true); agents can also read selected links with x_read.
+// x_search: Grok finds links; public readers return original post content.
+// verify=false keeps the legacy model-snippet path without separate post reads.
 //
 // XAI_API_KEY turns it on: POST <XAI_API_BASE>/responses with the x_search tool. XAI_API_BASE
 // defaults to https://api.x.ai/v1; set it for any endpoint that speaks xAI's Responses API.
@@ -13,6 +13,7 @@ export const DEFAULT_XAI_MODEL = "grok-4.7";
 const DEFAULT_MAX_TURNS = 2; // tool rounds per query; each round can fetch dozens of posts ($5 per 1k)
 const RETRY = new Set([429, 500, 502, 503, 504]);
 const VERIFY_LIMIT = 20;
+const READ_BUDGET_MS = 8000;
 
 export function searchProvider(env = {}) {
   return env.XAI_API_KEY ? "xai" : null;
@@ -42,7 +43,7 @@ export function parseSearchArgs(raw) {
     excluded,
     image: raw.enable_image_understanding === true,
     video: raw.enable_video_understanding === true,
-    verify: raw.verify === true,
+    verify: raw.verify !== false,
   };
 }
 
@@ -98,7 +99,9 @@ function xaiPrompt(query, args) {
     `Return up to ${args.maxResults} posts you actually found with the x_search tool, most useful first.`,
     "Follow the query's topic and intent; include reactions or discussion when requested.",
     "Answer with only a JSON array, no prose. Each item:",
-    '{"url": "https://x.com/<handle>/status/<id>", "author": "@handle", "date": "YYYY-MM-DD", "text": "the post text, verbatim, up to 280 characters"}',
+    args.verify
+      ? '{"url": "https://x.com/<handle>/status/<id>"}. Return links only; do not copy, summarize or analyze post text.'
+      : '{"url": "https://x.com/<handle>/status/<id>", "author": "@handle", "date": "YYYY-MM-DD", "text": "the post text, verbatim, up to 280 characters"}',
     "Never invent a URL. If nothing fits, answer [].",
   ].join("\n");
 }
@@ -183,17 +186,22 @@ export function parseXaiResponse(data, maxResults = 20) {
     users_fetched: tools.x_users_fetched,
     input_tokens: u.input_tokens,
     output_tokens: u.output_tokens,
+    reasoning_tokens: u.output_tokens_details?.reasoning_tokens,
   });
   return { results, usage };
 }
 
 async function searchXai(ctx, args, query) {
   const base = (ctx.env.XAI_API_BASE || XAI_BASE).replace(/\/+$/, "");
+  const model = ctx.env.XAI_MODEL || DEFAULT_XAI_MODEL;
   const data = await postJson(
     ctx,
     `${base}/responses`,
     {
-      model: ctx.env.XAI_MODEL || DEFAULT_XAI_MODEL,
+      model,
+      // These models support low effort; their upstream default is high.
+      // Leave other model overrides untouched rather than assume parameter support.
+      reasoning: ["grok-4.5", "grok-4.6", "grok-4.7"].includes(model) ? { effort: "low" } : undefined,
       input: [{ role: "user", content: xaiPrompt(query, args) }],
       tools: [xaiTool(args)],
       include: ["no_inline_citations"],
@@ -258,11 +266,12 @@ export async function runSearch(raw, ctx) {
   hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length);
 
   if (args.verify) {
+    const readCtx = { ...ctx, deadline: Math.min(ctx.deadline ?? Infinity, Date.now() + READ_BUDGET_MS) };
     const toCheck = hits.slice(0, VERIFY_LIMIT);
     await mapLimit(toCheck, 5, async (h) => {
       h.checked = true;
       try {
-        const r = await readPost(ctx, { kind: "post", id: h.id, input: h.url }, {});
+        const r = await readPost(readCtx, { kind: "post", id: h.id, input: h.url }, {});
         if (r.post && !r.post.unavailable) {
           h.post = r.post;
           h.source = r.source;
