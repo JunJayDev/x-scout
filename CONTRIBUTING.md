@@ -14,8 +14,9 @@ JavaScript code base that runs on Node and Cloudflare Workers, and plain-text re
   X's rules cite the page and the date checked. Code defaults are not live values.
 - **Read only.** The project never logs in to X, never handles X cookies, and never likes,
   follows, replies or posts. Pull requests that add write actions will be declined.
-- **Search results are leads.** Anything a search model says is re-read from X before it is
-  presented as fact.
+- **Browsing stays light.** Search returns snippets by default. Fetch full posts only when
+  requested, and keep snippets distinguishable from verbatim post text. No mandatory scoring
+  or account audits in the normal read/search flow.
 
 ## Development
 

@@ -2,27 +2,19 @@
 
 # x-scout
 
-面向 AI Agent 的 X（Twitter）调研工具：不登录读任何帖子，搜索结果逐条回 X 核对，把价值和传播分开判断。
+让 AI Agent 免登录读取 X（Twitter）帖子、搜索话题、访问个人主页。
 
 [![CI](https://github.com/JunJayDev/x-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/JunJayDev/x-scout/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-x-scout 为 AI Agent 提供三个 MCP 工具（`x_read`、`x_search`、`x_audit`）、一套将内容价值与传播数据区分判断的 skill，以及配套 CLI。可在本地以 stdio MCP、CLI 或 Claude Code 插件运行，也支持一键部署到个人的 Cloudflare 账号，供 claude.ai、ChatGPT 及手机客户端直接接入。读取与账号审查无需登录，也无需 API key；语义搜索调用 xAI 的 Grok 获取线索，再逐条回 X 重新读取核对。
+x-scout 提供 CLI、MCP 工具和可独立使用的 Agent skill。打开帖子、用一条查询搜索，或者查看账号资料和最近发帖即可，不要求先评分或审查作者。读取免费且不需要 key；搜索使用 xAI 的 Grok，需要 API key。
 
-```text
-$ x-scout audit @karpathy
-@karpathy · Andrej Karpathy · verified
-4.4M followers · following 1.1k · 10k posts · joined 2009-04-21
-originals: 51 (2026-02-24 → 2026-10-11) · median views 1.4M (p90 7.8M) · save 0.61 · talk 0.05 · 31 long posts
-
-top by views:
-- 67M views · 28k likes · 47.7x median · 2026-03-24
-  Software horror: litellm PyPI supply chain attack. Simple `pip install litellm` was enough to ...
-top by saves (bookmarks/likes):
-- 22M views · 61k likes · save 1.78 · 2026-04-02
-  LLM Knowledge Bases Something I'm finding very useful recently: using LLMs to build personal ...
+```bash
+x-scout read https://x.com/jack/status/20
+x-scout search "bun 1.3 production"
+x-scout read @jack --posts 10
 ```
 
-传得最远的一条是新闻（浏览量是这个账号中位数的 47.7 倍）。被收藏最多的一条（收藏比点赞还多）是一个方法。X 开源的推荐代码里，回复的权重是 5，复制链接 20，点赞 0.66，收藏是 0：传得远的是让人有反应的内容，有用的是让人存下来的内容。x-scout 把这两样分开打分。
+支持本地 CLI、stdio MCP、Claude Code 插件，也可部署到自己的 Cloudflare Worker 供远程客户端使用。没有运行时依赖。用户需要深入分析账号时，可选用 `x_audit` 获取账号统计。
 
 ## 安装
 
@@ -216,38 +208,32 @@ LLM Knowledge Bases
 | 工具 | 作用 | Key |
 |---|---|---|
 | `x_read` | 1 到 10 个帖子链接、帖子 ID、主页链接或 @handle。`mode` 可选 `post`、`thread`、`replies`。主页最多带 100 条最近的帖子。可选翻译。 | 不需要 |
-| `x_search` | 2 到 5 条查询；`from_date` 和 `to_date`（含当天）；最多 20 个限定或排除的账号；图片和视频理解；单条查询最多返回 20 条结果。前 20 条结果回 X 重读，未核验项单独标注。 | `XAI_API_KEY` |
+| `x_search` | 1 到 5 条查询，默认返回链接、作者、日期和搜索摘要。支持日期范围（含当天）、最多 20 个限定或排除账号、图片和视频理解，单条查询最多 20 条结果。`verify: true` 可额外加载最多 20 条帖子全文。 | `XAI_API_KEY` |
 | `x_audit` | 一个账号最近 10 到 100 条帖子：发帖频率、构成、原创浏览的中位数和 p90、每千粉丝点赞数、save 和 talk 比值、外链占比、爆款倍数、按浏览和按收藏排序的帖子、X 的「关于此账号」信息和提示。 | 不需要 |
 
 三个工具均支持 `format: "json"` 参数以获取结构化数据。
 
-每条帖子计算的指标：
+取得帖子互动数据时显示的指标：
 - `save`：收藏 / 点赞（反映留存价值与实用性）
 - `talk`：回复 / 点赞（回复多但收藏少通常提示争议或钓互动）
 - `spread`：（转发 + 引用）/ 点赞（扩散速率）
 - `eng`：互动总量 / 浏览量（互动密度）
 
-## 价值判断体系
+## Agent 使用流程
 
-skill（[`SKILL.md`](skills/x-scout/SKILL.md)）建立了系统的判断流程：
+[Skill](skills/x-scout/SKILL.md) 从用户的实际请求出发：
 
-1. **锁定一手信息源**：先判断谁会掌握第一手事实（维护者、测试运行者、涉事项目方）。
-2. **按专业技术词检索**：使用精准的产品名、版本号、机制词，跨语言检索。
-3. **阅读一手原帖与回复**：使用 `x_read` 完整阅读，纠错与补充在回复中。
-4. **分开评估价值与传播**：价值看亲历、具体、可核验、新颖、有用；传播看曝光量。识别钓互动、搬运清单、截图不注出处、蹭大号流量、AI 注水等问题。
-5. **审查账号基线**：引用账号前运行 `x_audit`，与账号自身的历史中位数比，而非与大号比。
-6. **给出回答**：注明链接、作者和发布时间，如实披露未核实线索。
-7. **沉淀结论**：将评估过的账号记录到来源文件（`x-sources.md`）。
+1. 有链接就用 `x_read` 打开，需要搜索就先执行一条 `x_search` 查询。
+2. 返回有用的内容和原帖链接。浏览结果时，搜索摘要即可；需要全文、准确引用、线程或回复时，再读取选中的帖子。
+3. 请求已回答就结束。只有任务需要时，才增加查询、分析账号或记录来源。
 
-参考文档：
-- [judging.md](skills/x-scout/references/judging.md)：价值评分表、问题清单、账号审查标准。
-- [signals.md](skills/x-scout/references/signals.md)：各数据指标释义与失真场景。
-- [x-algorithm.md](skills/x-scout/references/x-algorithm.md)：X 开源推荐代码中的确切权重（回复权重 5，复制链接 20，点赞 0.66，收藏 0）。
-- [x-rules.md](skills/x-scout/references/x-rules.md)：平台自动化规则限制。
+查看主页默认返回简介、统计数据和最近 20 条帖子。只看资料可设 `profile_posts: 0`（CLI 为 `--posts 0`），也可以指定最多 100 条帖子。
 
-**草稿评估**：同一套标准可用于检查自己的发帖草稿，先核验实质价值，再对照算法机制优化表达，明确指出钓互动行为。
+搜索默认不再逐条抓取结果。如需一次取得全文和互动数据，可设 `verify: true`（CLI 为 `--verify`），额外读取最多 20 条帖子。原有 `--no-verify` 参数仍可用。这里的读取只用于取得内容，不判断帖子中的说法是否属实。
 
-**安全准则**：x-scout 绝不登录，也绝不在 X 上执行任何写操作（无自动化点赞、批量关注或未批准的回复机器人）。它仅提供链接建议，由用户手动点击。
+账号和草稿分析仍有可选参考：[判断方法](skills/x-scout/references/judging.md)、[指标说明](skills/x-scout/references/signals.md)、[推荐代码说明](skills/x-scout/references/x-algorithm.md)。普通浏览不需要执行这些步骤。
+
+**只读操作：** x-scout 不登录 X，不点赞、关注、回复或发帖。它提供链接，由用户决定后续操作。见[平台规则](skills/x-scout/references/x-rules.md)。
 
 ## 费用说明
 
@@ -262,7 +248,7 @@ skill（[`SKILL.md`](skills/x-scout/SKILL.md)）建立了系统的判断流程�
 
 - 读取依赖第三方公开服务（FxTwitter、vxTwitter）及 X 官方嵌入接口。回退数据源缺少浏览量和收藏量，X 嵌入接口会截断长帖。
 - 回复获取受限：被隐藏、受保护及已删除的回复无法获取。
-- 搜索质量取决于 Grok，不同批次可能存在波动，因此所有命中项均回 X 重新读取核对。
+- 搜索摘要来自 Grok，可能不完整或经过转述。需要准确措辞时再读取选中的原帖；全文加载是可选操作。
 - 不读 For You 推荐流、通知和私信，也不在 X 上做任何操作。这是有意的设计。
 - 评估体系是面向 Agent 的方法论，并非绝对分类器。如遇误判可通过 [判断问题模板](.github/ISSUE_TEMPLATE/judging.md) 反馈。
 

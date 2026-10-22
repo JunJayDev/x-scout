@@ -1,6 +1,6 @@
 {
   "name": "x-scout",
-  "description": "x-scout: let agents read, search and judge X (Twitter)",
+  "description": "x-scout: let agents read posts, search X and browse profiles",
   "owner": {
     "name": "x-scout contributors"
   },
@@ -8,7 +8,7 @@
     {
       "name": "x-scout",
       "source": "./",
-      "description": "X (Twitter) research for AI agents: read any post without login, search with every hit checked on X, judge value apart from reach."
+      "description": "X (Twitter) for AI agents: read posts, search topics and browse profiles without login."
     }
   ]
 }

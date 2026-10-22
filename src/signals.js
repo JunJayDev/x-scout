@@ -154,8 +154,8 @@ export function auditAccount(profile, posts, now = Date.now(), recent) {
     .slice(0, 3)
     .map((p) => brief(p, { save: round(p.metrics.bookmarks / p.metrics.likes) }));
 
-  out.hints = hints(profile, out);
-  return prune(out);
+  const accountHints = hints(profile, out);
+  return { ...prune(out), hints: accountHints };
 }
 
 function hints(profile, a) {

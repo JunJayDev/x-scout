@@ -204,12 +204,14 @@ async function readPostFx(ctx, target, opts) {
   const lang = opts.translateTo || undefined;
   if (opts.mode === "replies") {
     const replies = [];
+    let repliesError;
     let first = null;
     let cursor;
     for (let page = 0; page < 5 && replies.length < opts.maxReplies; page++) {
       const res = await fxGet(ctx, `/2/conversation/${target.id}`, { ranking_mode: opts.ranking, cursor, lang });
       if (fxFailed(res)) {
         if (page === 0) throw new Error(fxError(res, "post"));
+        repliesError = fxError(res, "replies");
         break;
       }
       first = first || res.data;
@@ -217,13 +219,16 @@ async function readPostFx(ctx, target, opts) {
       cursor = res.data.cursor && res.data.cursor.bottom;
       if (!cursor) break;
     }
-    return prune({
-      kind: "post",
-      post: normPost(first.status),
-      thread: threadOf(first, target.id),
+    return {
+      ...prune({
+        kind: "post",
+        post: normPost(first.status),
+        thread: threadOf(first, target.id),
+        replies_ranking: opts.ranking,
+        replies_error: repliesError,
+      }),
       replies: replies.filter(Boolean).slice(0, opts.maxReplies),
-      replies_ranking: opts.ranking,
-    });
+    };
   }
   const path = opts.mode === "thread" ? `/2/thread/${target.id}` : `/2/status/${target.id}`;
   const res = await fxGet(ctx, path, { lang });
@@ -265,7 +270,7 @@ async function readProfileFx(ctx, target, opts) {
     const seen = new Set();
     out.recent_posts = posts.filter((p) => p && !(p.id && seen.has(p.id)) && (p.id ? seen.add(p.id) : true)).slice(0, opts.profilePosts);
   }
-  return prune(out);
+  return out;
 }
 
 /**
@@ -353,7 +358,7 @@ async function readProfileVx(ctx, target, opts) {
   if (opts.profilePosts > 0) {
     out.recent_posts = (u.latest_tweets || []).map(normVx).filter(Boolean).slice(0, opts.profilePosts);
   }
-  return prune(out);
+  return out;
 }
 
 // --- X's embed endpoint (as used by vercel/react-tweet) ---------------------------------------

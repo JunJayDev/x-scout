@@ -1,15 +1,11 @@
-// x_search: find posts by meaning, then confirm every hit against X.
-//
-// X's own search matches words, not meaning, and needs a login. Grok's x_search tool (xAI API)
-// searches X semantically. Search models can misquote or invent, so a hit is only a lead:
-// each post is re-read from X (read.js) and the verbatim text, author, time and metrics come
-// from there. Hits that cannot be confirmed stay in the result, marked unverified.
+// x_search: find posts by meaning and return compact search snippets.
+// Loading full posts is opt-in (verify=true); agents can also read selected links with x_read.
 //
 // XAI_API_KEY turns it on: POST <XAI_API_BASE>/responses with the x_search tool. XAI_API_BASE
 // defaults to https://api.x.ai/v1; set it for any endpoint that speaks xAI's Responses API.
 
 import { ConfigError, InputError, SearchError, cleanHandles, compact, exactDate, mapLimit, prune, sleep, str } from "./util.js";
-import { readPost, statusId } from "./read.js";
+import { parseTarget, readPost, statusId } from "./read.js";
 import { renderPost } from "./render.js";
 
 const XAI_BASE = "https://api.x.ai/v1";
@@ -25,7 +21,7 @@ export function searchProvider(env = {}) {
 export function parseSearchArgs(raw) {
   if (!raw || typeof raw !== "object") throw new InputError("arguments must be an object");
   const queries = (Array.isArray(raw.queries) ? raw.queries : []).map((q) => String(q).trim()).filter(Boolean);
-  if (queries.length < 2) throw new InputError("give at least two materially different queries");
+  if (queries.length < 1) throw new InputError("give at least one query");
   if (queries.length > 5) throw new InputError("give at most five queries");
   if (new Set(queries.map((q) => q.toLowerCase())).size !== queries.length) throw new InputError("queries must be different");
   const maxResults = raw.max_results === undefined ? 10 : Number(raw.max_results);
@@ -46,7 +42,7 @@ export function parseSearchArgs(raw) {
     excluded,
     image: raw.enable_image_understanding === true,
     video: raw.enable_video_understanding === true,
-    verify: raw.verify !== false,
+    verify: raw.verify === true,
   };
 }
 
@@ -100,7 +96,7 @@ function xaiPrompt(query, args) {
   return [
     `Search X for posts that answer: ${query}`,
     `Return up to ${args.maxResults} posts you actually found with the x_search tool, most useful first.`,
-    "Prefer original, first-hand, specific posts over reposts, aggregators and engagement bait.",
+    "Follow the query's topic and intent; include reactions or discussion when requested.",
     "Answer with only a JSON array, no prose. Each item:",
     '{"url": "https://x.com/<handle>/status/<id>", "author": "@handle", "date": "YYYY-MM-DD", "text": "the post text, verbatim, up to 280 characters"}',
     "Never invent a URL. If nothing fits, answer [].",
@@ -127,15 +123,15 @@ function xaiTool(args) {
 }
 
 /**
- * Pull post URLs out of an xAI Responses API reply: the model's JSON first, then citations and
- * annotations. Citations list every post the tool looked at (often dozens), so they only fill
- * up to `maxResults` when the model picked fewer.
+ * The model's selected results are authoritative, including an empty array.
+ * Fall back to citations only when there is no usable JSON array.
  */
 export function parseXaiResponse(data, maxResults = 20) {
   const cited = new Set();
+  const isPostUrl = (url) => statusId(url) && parseTarget(url).kind === "post";
   const addUrl = (u) => {
     const url = typeof u === "string" ? u : u && u.url;
-    if (url && statusId(url)) cited.add(url);
+    if (url && isPostUrl(url)) cited.add(url);
   };
   for (const c of data.citations || []) addUrl(c);
   let text = "";
@@ -150,11 +146,15 @@ export function parseXaiResponse(data, maxResults = 20) {
   }
   if (!text && typeof data.output_text === "string") text = data.output_text;
   let claimed = [];
+  let parsed = false;
   const m = text.match(/\[[\s\S]*\]/);
   if (m) {
     try {
       const arr = JSON.parse(m[0]);
-      if (Array.isArray(arr)) claimed = arr.filter((x) => x && typeof x === "object" && statusId(x.url));
+      if (Array.isArray(arr)) {
+        parsed = true;
+        claimed = arr.filter((x) => x && typeof x === "object" && isPostUrl(x.url));
+      }
     } catch {
       claimed = [];
     }
@@ -172,8 +172,7 @@ export function parseXaiResponse(data, maxResults = 20) {
       cited: [...cited].some((u) => statusId(u) === statusId(x.url)),
     });
   }
-  // Cited by the tool but missing from the JSON: leads, while there is room.
-  for (const u of cited) {
+  for (const u of parsed ? [] : cited) {
     if (results.length >= maxResults) break;
     if (!has(u)) results.push({ url: u, cited: true });
   }
@@ -208,6 +207,20 @@ async function searchXai(ctx, args, query) {
 }
 
 // --- run -------------------------------------------------------------------------------------
+
+// Apply requested filters to available metadata; full post metadata wins over snippets.
+function matchesFilters(hit, args) {
+  const author = (hit.post?.author || hit.lead.author || "").replace(/^@/, "").toLowerCase();
+  if (author && args.allowed.length && !args.allowed.some((h) => h.toLowerCase() === author)) return false;
+  if (author && args.excluded.some((h) => h.toLowerCase() === author)) return false;
+  const time = Date.parse(hit.post?.created_at || hit.lead.published_at);
+  if (Number.isFinite(time)) {
+    const date = new Date(time).toISOString().slice(0, 10);
+    if (args.fromDate && date < args.fromDate) return false;
+    if (args.toDate && date > args.toDate) return false;
+  }
+  return true;
+}
 
 export async function runSearch(raw, ctx) {
   const args = parseSearchArgs(raw);
@@ -244,27 +257,23 @@ export async function runSearch(raw, ctx) {
   // Posts that more queries agree on first, then the order the search returned them.
   hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length);
 
-  let verifiedCount = 0;
-  let notFound = 0;
   if (args.verify) {
     const toCheck = hits.slice(0, VERIFY_LIMIT);
     await mapLimit(toCheck, 5, async (h) => {
+      h.checked = true;
       try {
         const r = await readPost(ctx, { kind: "post", id: h.id, input: h.url }, {});
         if (r.post && !r.post.unavailable) {
           h.post = r.post;
           h.source = r.source;
-          verifiedCount++;
         } else {
           h.unverified = `X says the post is unavailable (${(r.post && r.post.unavailable) || "unknown"})`;
-          notFound++;
         }
       } catch (err) {
         h.unverified = `could not read it from X: ${err.message}`;
-        notFound++;
       }
     });
-    for (const h of hits.slice(VERIFY_LIMIT)) h.unverified = `not checked (only the first ${VERIFY_LIMIT} are verified)`;
+    for (const h of hits.slice(VERIFY_LIMIT)) h.unverified = `not loaded (limit ${VERIFY_LIMIT})`;
   }
 
   const allowed = new Set(args.allowed.map((h) => `@${h.toLowerCase()}`));
@@ -276,21 +285,28 @@ export async function runSearch(raw, ctx) {
     ),
   ];
 
-  return prune({
-    kind: "search",
-    provider,
-    rounds,
-    failed: failed.length ? failed.map(({ query, error }) => ({ query, error })) : undefined,
-    filters: prune({
-      allowed_x_handles: args.allowed,
-      excluded_x_handles: args.excluded,
-      from_date: args.fromDate,
-      to_date: args.toDate,
+  const filtered = hits.filter((h) => matchesFilters(h, args));
+  const filteredOut = hits.length - filtered.length;
+  hits = filtered;
+
+  return {
+    ...prune({
+      kind: "search",
+      provider,
+      rounds,
+      failed: failed.length ? failed.map(({ query, error }) => ({ query, error })) : undefined,
+      filters: prune({
+        allowed_x_handles: args.allowed,
+        excluded_x_handles: args.excluded,
+        from_date: args.fromDate,
+        to_date: args.toDate,
+      }),
+      verified: args.verify ? hits.filter((h) => h.post).length : undefined,
+      unverified: args.verify ? hits.filter((h) => h.checked && !h.post).length : undefined,
+      unchecked: args.verify ? hits.filter((h) => !h.checked).length : undefined,
+      filtered_out: filteredOut || undefined,
+      unexpected_authors: unexpected,
     }),
-    verified: args.verify ? verifiedCount : undefined,
-    unverified: args.verify ? notFound : undefined,
-    unchecked: args.verify ? Math.max(0, hits.length - VERIFY_LIMIT) : undefined,
-    unexpected_authors: unexpected,
     results: hits.map((h) =>
       prune({
         url: (h.post && h.post.url) || h.url,
@@ -298,11 +314,11 @@ export async function runSearch(raw, ctx) {
         post: h.post,
         source: h.source,
         unverified: h.unverified,
-        // Only the search model's words, kept when X could not confirm them.
+        // Keep snippets until full post content is loaded.
         lead: h.post ? undefined : prune({ ...h.lead }),
       })
     ),
-  });
+  };
 }
 
 export function renderSearch(r) {
@@ -310,8 +326,8 @@ export function renderSearch(r) {
   const head = [
     `${r.results.length} posts from ${r.rounds.length}${r.failed ? ` of ${asked}` : ""} queries (${r.provider})`,
     r.verified === undefined
-      ? "not verified"
-      : [`${r.verified} confirmed on X`, r.unverified ? `${r.unverified} not found on X` : "", r.unchecked ? `${r.unchecked} not checked (only the first ${VERIFY_LIMIT} are)` : ""].filter(Boolean).join(", "),
+      ? "search snippets"
+      : [`${r.verified} full posts loaded`, r.unverified ? `${r.unverified} could not be loaded` : "", r.unchecked ? `${r.unchecked} not loaded (limit ${VERIFY_LIMIT})` : ""].filter(Boolean).join(", "),
   ];
   const lines = [head.join(" · ")];
   for (const q of r.rounds) {
@@ -319,7 +335,7 @@ export function renderSearch(r) {
     lines.push(`- "${q.query}": ${q.hits} hits${u.posts_fetched !== undefined ? ` · ${u.posts_fetched} posts fetched by the search model` : ""}`);
   }
   for (const f of r.failed || []) lines.push(`FAILED, not searched: "${f.query}": ${f.error}. This list is incomplete; run that query again.`);
-  if (r.unexpected_authors && r.unexpected_authors.length) lines.push(`unexpected authors (outside allowed_x_handles): ${r.unexpected_authors.join(", ")}`);
+  if (r.filtered_out) lines.push(`omitted ${r.filtered_out} posts outside the requested dates or handles`);
   r.results.forEach((h, i) => {
     lines.push("", `———`);
     const label = `[${i + 1}] `;
@@ -327,13 +343,14 @@ export function renderSearch(r) {
       lines.push(renderPost(h.post, { label }));
     } else {
       const l = h.lead || {};
-      lines.push(`${label}UNVERIFIED ${h.url}`, `why: ${h.unverified || "not checked"}`);
-      if (l.author || l.published_at) lines.push(`search model says: ${[l.author, l.published_at].filter(Boolean).join(" · ")}`);
-      if (l.snippet) lines.push(`search model's text (may be wrong): ${l.snippet}`);
+      lines.push(`${label}${[l.author, l.published_at].filter(Boolean).join(" · ")}`, h.url);
+      if (h.unverified) lines.push(`full post unavailable: ${h.unverified}`);
+      if (l.snippet) lines.push(l.snippet);
     }
     lines.push(`matched: ${h.matched_queries.map((q) => `"${q}"`).join(", ")}`);
   });
   if (!r.results.length) lines.push("", "No posts. Try other wording, the other language, concrete names, or a wider date range.");
+  else if (r.results.some((h) => !h.post)) lines.push("", "Snippets come from search; use x_read for full text, threads or replies when needed.");
   return lines.join("\n");
 }
 
