@@ -1,7 +1,7 @@
 {
   "name": "x-scout",
   "version": "0.1.0",
-  "description": "X (Twitter) research for AI agents: read any post without login, search with every hit checked on X, judge value apart from reach.",
+  "description": "X (Twitter) for AI agents: read posts, search topics and browse profiles without login.",
   "license": "MIT",
   "homepage": "https://github.com/JunJayDev/x-scout#readme",
   "repository": {

@@ -19,7 +19,7 @@ test("provider selection", () => {
 
 test("input validation", async () => {
   const { ctx } = ctxWith(XAI);
-  await assert.rejects(runSearch({ queries: ["one"] }, ctx), /at least two/);
+  await assert.rejects(runSearch({ queries: [] }, ctx), /at least one/);
   await assert.rejects(runSearch({ queries: ["a", "A"] }, ctx), /different/);
   await assert.rejects(runSearch({ queries: ["a", "b"], from_date: "2026-02-30" }, ctx), /real date/);
   await assert.rejects(runSearch({ queries: ["a", "b"], from_date: "2026-10-02", to_date: "2026-10-01" }, ctx), /after/);
@@ -44,7 +44,7 @@ test("xai: request shape (tool, filters, inclusive to_date, cost cap)", async ()
 
 test("xai: merge, verify against X, keep unverified leads", async () => {
   const { ctx } = ctxWith(XAI);
-  const r = await runSearch({ queries: ["alpha one", "beta two"] }, ctx);
+  const r = await runSearch({ queries: ["alpha one", "beta two"], verify: true }, ctx);
   const byId = Object.fromEntries(r.results.map((h) => [h.url.match(/(\d+)$/)[1], h]));
   // post 1 is in both queries: first, verified, text from X not from the model
   assert.equal(r.results[0].url, "https://x.com/alice/status/1");
@@ -54,15 +54,15 @@ test("xai: merge, verify against X, keep unverified leads", async () => {
   // the invented post cannot be confirmed
   assert.match(byId["404"].unverified, /not found/);
   assert.equal(byId["404"].lead.snippet, "invented");
-  // cited by the tool but missing from the JSON: kept as a lead and verified
-  assert.ok(byId["7"].post);
+  // Viewed citations do not override the model's selected results.
+  assert.equal(byId["7"], undefined);
   assert.equal(r.verified, r.results.length - 1);
   assert.equal(r.rounds[0].usage.posts_fetched, 25);
   const text = renderSearch(r);
-  assert.match(text, /confirmed on X, 1 not found on X/);
+  assert.match(text, /full posts loaded, 1 could not be loaded/);
   assert.doesNotMatch(text, /not checked/);
-  assert.match(text, /UNVERIFIED https:\/\/x\.com\/ghost\/status\/404/);
-  assert.match(text, /search model's text \(may be wrong\): invented/);
+  assert.match(text, /https:\/\/x\.com\/ghost\/status\/404/);
+  assert.match(text, /invented/);
   assert.match(text, /25 posts fetched by the search model/);
 });
 
@@ -101,17 +101,17 @@ test("xai: response parsing ignores user links and prose", () => {
   assert.deepEqual(parseXaiResponse({ output: [] }).results, []);
 });
 
-test("xai: citations (every post the tool looked at) only fill up to max_results", () => {
+test("xai: valid JSON selections are not padded with viewed citations", () => {
   const picked = [5, 6, 5].map((id) => ({ url: `https://x.com/a/status/${id}`, author: "@a" }));
   const citations = Array.from({ length: 60 }, (_, i) => `https://x.com/i/status/${100 + i}`);
   const p = parseXaiResponse({ output_text: JSON.stringify(picked), citations }, 4);
-  assert.deepEqual(p.results.map((r) => r.url), ["https://x.com/a/status/5", "https://x.com/a/status/6", "https://x.com/i/status/100", "https://x.com/i/status/101"]);
+  assert.deepEqual(p.results.map((r) => r.url), ["https://x.com/a/status/5", "https://x.com/a/status/6"]);
   assert.equal(parseXaiResponse({ output_text: JSON.stringify(picked), citations }, 1).results.length, 1);
 });
 
 test("only the first 20 hits are read from X; the rest are counted as not checked", () => {
   const text = renderSearch({ provider: "xai", rounds: [], verified: 18, unverified: 2, unchecked: 7, results: [] });
-  assert.match(text, /18 confirmed on X, 2 not found on X, 7 not checked \(only the first 20 are\)/);
+  assert.match(text, /18 full posts loaded, 2 could not be loaded, 7 not loaded \(limit 20\)/);
 });
 
 test("verify=false skips reading X", async () => {
@@ -119,7 +119,7 @@ test("verify=false skips reading X", async () => {
   const r = await runSearch({ queries: ["alpha", "beta"], verify: false }, ctx);
   assert.ok(!fake.calls.some((c) => c.url.startsWith("https://fx.test")));
   assert.equal(r.verified, undefined);
-  assert.match(renderSearch(r), /not verified/);
+  assert.match(renderSearch(r), /search snippets/);
 });
 
 test("unexpected authors, redirects, no key", async () => {
@@ -128,4 +128,29 @@ test("unexpected authors, redirects, no key", async () => {
   assert.ok(r.unexpected_authors.includes("@alice"));
   await assert.rejects(runSearch({ queries: ["redirect me", "b"] }, ctx), /redirected to https:\/\/moved\.test/);
   await assert.rejects(runSearch({ queries: ["a", "b"] }, ctxWith(ENV).ctx), /needs XAI_API_KEY/);
+});
+
+
+test("search filters use snippet metadata by default and full post metadata when loaded", async () => {
+  const { ctx } = ctxWith(XAI);
+  const range = { queries: ["beta"], from_date: "2026-10-11", to_date: "2026-10-13" };
+  const snippets = await runSearch(range, ctx);
+  assert.equal(snippets.results.length, 2, "inclusive date bounds preserve both endpoints");
+  const excluded = await runSearch({ ...range, excluded_x_handles: ["ALICE"] }, ctx);
+  assert.deepEqual(excluded.results.map(h => h.lead.author), ["@carol"]);
+  assert.equal(excluded.filtered_out, 1);
+  const allowed = await runSearch({ ...range, allowed_x_handles: ["@alice"] }, ctx);
+  assert.deepEqual(allowed.results.map(h => h.lead.author), ["@alice"]);
+  const full = await runSearch({ ...range, verify: true }, ctx);
+  assert.deepEqual(full.results, [], "real post dates are 2025, despite the model's 2026 dates");
+  assert.equal(full.verified, 0);
+  assert.equal(full.filtered_out, 2);
+  assert.match(renderSearch(full), /omitted 2 posts outside/);
+});
+
+test("citation fallback is bounded and accepts only X post URLs", () => {
+  const citations = ["https://example.com/a/status/99", "https://x.com/a/status/1", "https://x.com/a/status/2"];
+  const r = parseXaiResponse({ output_text: "Here are the links", citations }, 1);
+  assert.deepEqual(r.results.map(h => h.url), ["https://x.com/a/status/1"]);
+  assert.deepEqual(parseXaiResponse({ output_text: "[]", citations }).results, []);
 });

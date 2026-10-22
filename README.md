@@ -2,27 +2,23 @@
 
 # x-scout
 
-X (Twitter) research for AI agents: read any post without login, search with every hit checked on X, judge value apart from reach.
+X (Twitter) for AI agents: read posts, search topics and browse profiles without login.
 
 [![CI](https://github.com/JunJayDev/x-scout/actions/workflows/ci.yml/badge.svg)](https://github.com/JunJayDev/x-scout/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-x-scout provides AI agents with three MCP tools (`x_read`, `x_search`, `x_audit`), an evaluation skill that scores substance separately from engagement metrics, and a CLI. It runs locally via stdio MCP, CLI, or Claude Code plugin, or deploys to your own Cloudflare account for claude.ai, ChatGPT, and mobile apps. Reading and auditing require no account and no API key; semantic search uses xAI's Grok to find leads and re-reads every hit directly from X.
+x-scout provides a CLI, MCP tools and a self-contained agent skill. Open a post, search with
+one query, or visit an account's profile and recent posts. No mandatory scoring or account
+audits. Reading is free and needs no key; search uses xAI's Grok and requires an API key.
 
-```text
-$ x-scout audit @karpathy
-@karpathy · Andrej Karpathy · verified
-4.4M followers · following 1.1k · 10k posts · joined 2009-04-21
-originals: 51 (2026-02-24 → 2026-10-11) · median views 1.4M (p90 7.8M) · save 0.61 · talk 0.05 · 31 long posts
-
-top by views:
-- 67M views · 28k likes · 47.7x median · 2026-03-24
-  Software horror: litellm PyPI supply chain attack. Simple `pip install litellm` was enough to ...
-top by saves (bookmarks/likes):
-- 22M views · 61k likes · save 1.78 · 2026-04-02
-  LLM Knowledge Bases Something I'm finding very useful recently: using LLMs to build personal ...
+```bash
+x-scout read https://x.com/jack/status/20
+x-scout search "bun 1.3 production"
+x-scout read @jack --posts 10
 ```
 
-The post that travelled furthest was news (47.7x the account's median views). The post people kept, with more bookmarks than likes, was a method. X's open-source ranking code weighs a reply 5, a copied link 20, a like 0.66 and a bookmark 0: what spreads is what makes people react, what is useful is what people save. x-scout scores the two apart.
+Runs locally through CLI, stdio MCP or Claude Code plugin, or on your own Cloudflare Worker
+for remote clients. No runtime dependencies. Optional `x_audit` provides account statistics
+when the user asks for deeper analysis.
 
 ## Install
 
@@ -216,38 +212,40 @@ LLM Knowledge Bases
 | Tool | Capabilities | Key |
 |---|---|---|
 | `x_read` | 1-10 post URLs, IDs, profile URLs or @handles. Mode: `post`, `thread`, `replies`. Profiles with up to 100 recent posts. Optional translation. | None |
-| `x_search` | 2-5 queries, `from_date`/`to_date` (inclusive), up to 20 allowed or excluded handles, image and video understanding, `max_results` up to 20 per query. First 20 hits re-read from X; unconfirmed hits are kept and marked unverified. | `XAI_API_KEY` |
+| `x_search` | 1-5 queries; links, authors, dates and snippets by default. Inclusive dates, up to 20 allowed or excluded handles, image/video understanding, up to 20 results per query. `verify: true` optionally loads up to 20 full posts. | `XAI_API_KEY` |
 | `x_audit` | Reads an account's last 10-100 posts: cadence, mix, median and p90 views, likes per 1k followers, save and talk ratios, link-out share, breakout multiplier, top posts by views and by saves, X's "About this account", hints. | None |
 
 All three tools take `format: "json"` for structured output.
 
-Signals computed on every post:
+Signals shown when full post metrics are available:
 - `save`: bookmarks / likes (measures retention and reference value)
 - `talk`: replies / likes (elevated talk with low save flags debate or bait)
 - `spread`: (reposts + quotes) / likes (amplification rate)
 - `eng`: engagements / views (interaction density)
 
-## How judging works
+## Agent workflow
 
-The evaluation skill ([`SKILL.md`](skills/x-scout/SKILL.md)) defines a systematic loop:
+The [skill](skills/x-scout/SKILL.md) starts with the user's request:
 
-1. **Identify primary sources**: Determine who would know first-hand (maintainers, incident responders, benchmark authors).
-2. **Search by technical terms**: Query specific names, versions, and mechanisms across languages.
-3. **Read primary sources**: Inspect full posts and replies with `x_read`. Corrections and clarifications appear in replies.
-4. **Separate value and reach**: Reach measures exposure; value measures substance (first-hand, specific, checkable, novel, actionable). Identify flags like engagement bait, recycled lists, uncredited screenshots, borrowed reach, and synthetic padding.
-5. **Audit accounts**: Run `x_audit` before citing an account as authoritative. Compare posts to the creator's own baseline, not celebrity accounts.
-6. **Report findings**: Attribute URLs, authors, and dates. Disclose unverified leads.
-7. **Persist verdicts**: Record judged accounts in a local sources file (`x-sources.md`).
+1. Open a supplied link with `x_read`, or run one `x_search` query.
+2. Show useful content with source links. Search snippets are enough for browsing; use
+   `x_read` on selected posts for full text, exact quotes, threads or replies.
+3. Stop when the request is answered. Add queries, account analysis or source tracking only
+   when needed for the user's task.
 
-Reference documentation:
-- [judging.md](skills/x-scout/references/judging.md): Value scoring sheet, warning flags, account evaluation criteria.
-- [signals.md](skills/x-scout/references/signals.md): Metric definitions and distortion cases.
-- [x-algorithm.md](skills/x-scout/references/x-algorithm.md): Weights from X's open-source ranking code (reply: 5, copied link: 20, like: 0.66, bookmark: 0).
-- [x-rules.md](skills/x-scout/references/x-rules.md): Platform automation rules and restrictions.
+For profiles, `x_read` returns the bio, counts and 20 recent posts by default. Set
+`profile_posts: 0` (CLI `--posts 0`) for just the bio and counts, or choose up to 100 posts.
 
-**Draft evaluation**: The skill evaluates post drafts against the same standards: verifying substance first, then checking structure against algorithmic factors without writing engagement bait.
+Search no longer fetches each result by default. To load full posts and metrics in the same
+call, set `verify: true` (CLI `--verify`); this adds requests for up to 20 posts. The existing
+`--no-verify` option still works. Fetching a post does not fact-check its claims.
 
-**Platform safety**: x-scout never logs in and never executes actions on X (no automated likes, bulk follows, or unapproved AI reply bots). It recommends links; the user clicks.
+Optional account and draft analysis references: [judging](skills/x-scout/references/judging.md),
+[signals](skills/x-scout/references/signals.md), [ranking code](skills/x-scout/references/x-algorithm.md).
+They are not part of the default browsing flow.
+
+**Read only:** x-scout never logs in and never likes, follows, replies or posts on X.
+It provides links and leaves actions to the user. See [platform rules](skills/x-scout/references/x-rules.md).
 
 ## Costs
 
@@ -262,7 +260,7 @@ Reference documentation:
 
 - Reading relies on public services (FxTwitter, vxTwitter) and X's embed endpoint. Fallbacks lack views and bookmarks, and X's embed truncates long posts.
 - Retrieved replies exclude hidden, protected, or deleted items.
-- Search quality depends on Grok and varies between runs; every hit is re-read from X for verification.
+- Search snippets come from Grok and may be incomplete or paraphrased. Read the selected post when exact wording matters. Full-post loading is optional.
 - No For You feed, notifications, direct messages, or write actions on X, by design.
 - Evaluation is an agent methodology, not an absolute classifier. Report incorrect assessments via the [judging issue template](.github/ISSUE_TEMPLATE/judging.md).
 

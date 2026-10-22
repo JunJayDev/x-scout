@@ -97,6 +97,7 @@ export function renderRead(result) {
     if (item.kind === "profile") {
       const lines = [`${n}${renderProfile(item.profile)}`, sourceLine(item)];
       if (item.posts_error) lines.push(`recent posts: ${item.posts_error}`);
+      if (item.recent_posts) lines.push(`recent posts (${item.recent_posts.length}):`);
       for (const [j, p] of (item.recent_posts || []).entries()) lines.push("", renderPost(p, { pad: "  ", label: `${i + 1}.${j + 1} ` }));
       return lines.join("\n");
     }
@@ -109,6 +110,7 @@ export function renderRead(result) {
       lines.push("", `replies (${item.replies.length}, by ${item.replies_ranking}):`);
       for (const [j, p] of item.replies.entries()) lines.push(renderPost(p, { pad: "  ", label: `r${j + 1} ` }), "");
     }
+    if (item.replies_error) lines.push(`replies incomplete: ${item.replies_error}`);
     return lines.join("\n");
   });
   return blocks.join("\n\n———\n\n");

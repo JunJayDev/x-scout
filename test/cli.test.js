@@ -55,3 +55,24 @@ test("read and audit through the CLI with the fake network", async (t) => {
     process.env = saved;
   }
 });
+
+test("CLI: one query works, full post loading is opt-in, --no-verify stays compatible", async (t) => {
+  const fake = makeFetch();
+  t.mock.method(globalThis, "fetch", fake.fetch);
+  const saved = { ...process.env };
+  Object.assign(process.env, ENV, { XAI_API_KEY: "xai-test-key", X_SCOUT_CONFIG: join(tmpdir(), "xs-none", "config.env") });
+  try {
+    let out = "";
+    await main(["search", "beta", "--json"], s => out = s);
+    assert.equal(fake.calls.length, 1);
+    assert.equal(JSON.parse(out).results[0].lead.snippet, "post 1");
+    await main(["search", "beta", "--verify", "--json"], s => out = s);
+    assert.equal(JSON.parse(out).results[0].post.text, "full text of 1");
+    const before = fake.calls.length;
+    await main(["search", "beta", "--no-verify", "--json"], s => out = s);
+    assert.equal(fake.calls.length - before, 1);
+    assert.equal(JSON.parse(out).results[0].post, undefined);
+  } finally {
+    process.env = saved;
+  }
+});
