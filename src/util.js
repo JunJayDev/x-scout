@@ -95,8 +95,10 @@ export function withQuery(base, path, params = {}) {
 export async function getJson(ctx, url, { headers = {}, timeoutMs = 25000 } = {}) {
   let last = null;
   for (let attempt = 0; attempt < 2; attempt++) {
+    const remaining = (ctx.deadline ?? Infinity) - Date.now();
+    if (remaining <= 0) return { status: 0, data: null, text: "read time budget exhausted" };
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, remaining));
     try {
       const res = await ctx.fetch(url, {
         headers: { accept: "application/json", "user-agent": ctx.userAgent, ...headers },
@@ -119,7 +121,8 @@ export async function getJson(ctx, url, { headers = {}, timeoutMs = 25000 } = {}
     } finally {
       clearTimeout(timer);
     }
-    await sleep(ctx.retryDelayMs ?? 800);
+    if (Date.now() >= (ctx.deadline ?? Infinity)) return { status: 0, data: null, text: "read time budget exhausted" };
+    await sleep(Math.min(ctx.retryDelayMs ?? 800, (ctx.deadline ?? Infinity) - Date.now()));
   }
   return last;
 }

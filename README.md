@@ -211,7 +211,7 @@ LLM Knowledge Bases
 | Tool | Capabilities | Key |
 |---|---|---|
 | `x_read` | 1-10 post URLs, IDs, profile URLs or @handles. Mode: `post`, `thread`, `replies`. Profiles with up to 100 recent posts. Optional translation. | None |
-| `x_search` | 1-5 queries; links, authors, dates and snippets by default. Inclusive dates, up to 20 allowed or excluded handles, image/video understanding, up to 20 results per query. `verify: true` optionally loads up to 20 full posts. | `XAI_API_KEY` |
+| `x_search` | 1-5 queries; Grok finds links and public readers supply original text, authors and dates. Inclusive dates, up to 20 allowed or excluded handles, image/video understanding, up to 20 results per query. Loads up to 20 originals within an 8-second read budget; `verify: false` returns model snippets instead. | `XAI_API_KEY` |
 | `x_audit` | Reads an account's last 10-100 posts: cadence, mix, median and p90 views, likes per 1k followers, save and talk ratios, link-out share, breakout multiplier, top posts by views and by saves, X's "About this account", hints. | None |
 
 All three tools take `format: "json"` for structured output.
@@ -231,17 +231,21 @@ For optional analysis, the library exports `postSignals(post)` to compute:
 The [skill](skills/x-scout/SKILL.md) starts with the user's request:
 
 1. Open a supplied link with `x_read`, or run one `x_search` query.
-2. Show useful content with source links. Search snippets are enough for browsing; use
-   `x_read` on selected posts for full text, exact quotes, threads or replies.
+2. Show useful content with source links. Search returns original posts; reuse them and
+   use `x_read` only for missing content, threads or replies.
 3. Stop when the request is answered. Add queries, account analysis or source tracking only
    when needed for the user's task.
 
 For profiles, `x_read` returns the bio, counts and 20 recent posts by default. Set
 `profile_posts: 0` (CLI `--posts 0`) for just the bio and counts, or choose up to 100 posts.
 
-Search no longer fetches each result by default. To load full posts and metrics in the same
-call, set `verify: true` (CLI `--verify`); this adds requests for up to 20 posts. The existing
-`--no-verify` option still works. Fetching a post does not fact-check its claims.
+Search asks Grok for links only, then loads original posts in parallel (up to 20, with a
+shared 8-second reading budget). Supported Grok models use low reasoning effort to avoid
+spending high-effort reasoning on ordinary searches. A failed read keeps the link and error;
+loading a post does not fact-check its claims.
+
+`verify: false` (CLI `--no-verify`) skips the readers and returns model snippets. Existing
+`verify: true` / `--verify` calls remain supported; original loading is now the default.
 
 Optional account and draft analysis references: [judging](skills/x-scout/references/judging.md),
 [signals](skills/x-scout/references/signals.md), [ranking code](skills/x-scout/references/x-algorithm.md).
@@ -263,7 +267,7 @@ It provides links and leaves actions to the user. See [platform rules](skills/x-
 
 - Reading relies on public services (FxTwitter, vxTwitter) and X's embed endpoint. Fallbacks lack views and bookmarks, and X's embed truncates long posts.
 - Retrieved replies exclude hidden, protected, or deleted items.
-- Search snippets come from Grok and may be incomplete or paraphrased. Read the selected post when exact wording matters. Full-post loading is optional.
+- Search discovery still uses Grok, so latency and selection vary. Original text comes from public readers; if they fail, the result keeps its link. Opt-in model snippets may be incomplete or paraphrased.
 - No For You feed, notifications, direct messages, or write actions on X, by design.
 - Evaluation is an agent methodology, not an absolute classifier. Report incorrect assessments via the [judging issue template](.github/ISSUE_TEMPLATE/judging.md).
 

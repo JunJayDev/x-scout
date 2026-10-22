@@ -161,7 +161,7 @@ export function makeFetch(overrides = {}) {
         id: "resp_1",
         output: [
           { type: "custom_tool_call", name: "x_semantic_search", input: "{}" },
-          { type: "message", content: [{ type: "output_text", text: "```json\n" + JSON.stringify(items) + "\n```", annotations: [{ type: "url_citation", url: "https://x.com/i/status/7" }] }] },
+          { type: "message", content: [{ type: "output_text", text: "```json\n" + JSON.stringify(prompt.includes('"text"') ? items : items.map(({ url }) => ({ url }))) + "\n```", annotations: [{ type: "url_citation", url: "https://x.com/i/status/7" }] }] },
         ],
         citations: ["https://x.com/i/status/1", "https://x.com/i/user/55"],
         usage: { input_tokens: 1200, output_tokens: 300, server_side_tool_usage_details: { x_posts_fetched: 25, x_users_fetched: 0 } },

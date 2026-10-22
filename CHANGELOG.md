@@ -11,7 +11,9 @@ First release.
   endpoint and says what the fallback could not provide. Posts carry the author's avatar
   (`author_avatar`) and profiles theirs (`avatar`) when the source gives one.
 - `x_search`: 1-5 queries through xAI's `x_search` tool, merged by post. Returns search
-  snippets by default; `verify: true` / `--verify` optionally loads up to 20 full posts.
+  originals by default: Grok returns links only, then public readers load up to 20 posts
+  under one 8-second read budget. Supported Grok models use low reasoning effort.
+  `verify: false` / `--no-verify` retains model snippets without separate reads.
   Valid empty selections stay empty, without padding from viewed citations. Date and handle
   filters use available metadata, with loaded posts taking precedence. Inclusive date range,
   cost cap per query, posts-fetched report. `XAI_API_BASE` supports compatible Responses APIs.

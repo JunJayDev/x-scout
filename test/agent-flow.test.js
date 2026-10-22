@@ -12,13 +12,15 @@ const call = (ctx, name, args) => handleMessage({
   jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args },
 }, ctx);
 
-test("MCP: a single search returns snippets with no per-post requests", async () => {
+test("MCP: a single search finds links and returns original text without a model summary", async () => {
   const fake = makeFetch();
   const reply = await call(makeContext(searchEnv, fake.fetch), "x_search", { queries: ["beta"] });
   assert.equal(reply.result.isError, false);
-  assert.match(reply.result.content[0].text, /search snippets/);
+  assert.match(reply.result.content[0].text, /full posts loaded/);
+  assert.match(reply.result.content[0].text, /full text of 1/);
   assert.match(reply.result.content[0].text, /https:\/\/x.com\/alice\/status\/1/);
-  assert.equal(fake.calls.length, 1);
+  assert.equal(fake.calls.filter(c => c.method === "POST").length, 1);
+  assert.equal(fake.calls.filter(c => c.method === "GET").length, 2);
 });
 
 test("MCP: a valid empty search is successful in text and JSON, even with citations", async () => {

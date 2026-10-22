@@ -39,17 +39,17 @@ this skill's folder (Node 18+, no package install).
 1. **Open the supplied link or search once.** One query is enough to start. Add wording or
    another language only when results are poor or the user wants a broad search (up to 5
    queries per call). Dates and handles can narrow a search; see `references/searching.md`.
-2. **Return useful content with links.** Search returns snippets from the search model, not
-   necessarily the full or verbatim post. They are sufficient for browsing results. Use
-   `x_read` on selected links when the user wants the full post, a precise quote, media links,
-   a thread or replies. Reuse full posts already returned; do not fetch them again by default.
+2. **Return useful content with links.** Grok finds post links; public readers supply the
+   original text, author, date and metrics. Reuse those posts. Use `x_read` only for threads,
+   replies, or a post the search could not load. Missing or truncated content is marked.
 3. **Stop when the request is answered.** No automatic scoring, author audit, reply search or
    sources-file write. If the user asks for deeper account analysis, use `x_audit`; the optional
    judging and signal references are `references/judging.md` and `references/signals.md`.
 
-For a search that specifically needs full posts and metrics in one call, use `verify: true`
-(or `--verify`). This loads up to 20 posts and takes extra requests; it does not fact-check
-what the posts claim. Normal searches leave it off.
+Search loads up to 20 original posts in parallel, with a shared 8-second reading budget.
+If a post cannot be loaded, its link remains in the results with the reason. No truth scoring
+is involved. Only set `verify: false` (CLI `--no-verify`) if model snippets are sufficient and
+you want to skip original reads. The default needs no extra parameter.
 
 ## Boundaries
 

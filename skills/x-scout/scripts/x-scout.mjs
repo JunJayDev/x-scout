@@ -76,8 +76,10 @@ function withQuery(base, path, params = {}) {
 async function getJson(ctx, url, { headers = {}, timeoutMs = 25e3 } = {}) {
   let last = null;
   for (let attempt = 0; attempt < 2; attempt++) {
+    const remaining = (ctx.deadline ?? Infinity) - Date.now();
+    if (remaining <= 0) return { status: 0, data: null, text: "read time budget exhausted" };
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, remaining));
     try {
       const res = await ctx.fetch(url, {
         headers: { accept: "application/json", "user-agent": ctx.userAgent, ...headers },
@@ -100,7 +102,8 @@ async function getJson(ctx, url, { headers = {}, timeoutMs = 25e3 } = {}) {
     } finally {
       clearTimeout(timer);
     }
-    await sleep(ctx.retryDelayMs ?? 800);
+    if (Date.now() >= (ctx.deadline ?? Infinity)) return { status: 0, data: null, text: "read time budget exhausted" };
+    await sleep(Math.min(ctx.retryDelayMs ?? 800, (ctx.deadline ?? Infinity) - Date.now()));
   }
   return last;
 }
@@ -981,7 +984,7 @@ function parseSearchArgs(raw) {
     excluded,
     image: raw.enable_image_understanding === true,
     video: raw.enable_video_understanding === true,
-    verify: raw.verify === true
+    verify: raw.verify !== false
   };
 }
 async function postJson(ctx, url, body, headers, timeoutMs) {
@@ -1032,7 +1035,7 @@ function xaiPrompt(query, args) {
     `Return up to ${args.maxResults} posts you actually found with the x_search tool, most useful first.`,
     "Follow the query's topic and intent; include reactions or discussion when requested.",
     "Answer with only a JSON array, no prose. Each item:",
-    '{"url": "https://x.com/<handle>/status/<id>", "author": "@handle", "date": "YYYY-MM-DD", "text": "the post text, verbatim, up to 280 characters"}',
+    args.verify ? '{"url": "https://x.com/<handle>/status/<id>"}. Return links only; do not copy, summarize or analyze post text.' : '{"url": "https://x.com/<handle>/status/<id>", "author": "@handle", "date": "YYYY-MM-DD", "text": "the post text, verbatim, up to 280 characters"}',
     "Never invent a URL. If nothing fits, answer []."
   ].join("\n");
 }
@@ -1108,17 +1111,22 @@ function parseXaiResponse(data, maxResults = 20) {
     posts_fetched: tools.x_posts_fetched,
     users_fetched: tools.x_users_fetched,
     input_tokens: u.input_tokens,
-    output_tokens: u.output_tokens
+    output_tokens: u.output_tokens,
+    reasoning_tokens: u.output_tokens_details?.reasoning_tokens
   });
   return { results, usage };
 }
 async function searchXai(ctx, args, query) {
   const base = (ctx.env.XAI_API_BASE || XAI_BASE).replace(/\/+$/, "");
+  const model = ctx.env.XAI_MODEL || DEFAULT_XAI_MODEL;
   const data = await postJson(
     ctx,
     `${base}/responses`,
     {
-      model: ctx.env.XAI_MODEL || DEFAULT_XAI_MODEL,
+      model,
+      // These models support low effort; their upstream default is high.
+      // Leave other model overrides untouched rather than assume parameter support.
+      reasoning: ["grok-4.5", "grok-4.6", "grok-4.7"].includes(model) ? { effort: "low" } : void 0,
       input: [{ role: "user", content: xaiPrompt(query, args) }],
       tools: [xaiTool(args)],
       include: ["no_inline_citations"],
@@ -1169,11 +1177,12 @@ async function runSearch(raw, ctx) {
   let hits = [...merged.values()];
   hits.sort((a, b) => b.matched_queries.length - a.matched_queries.length);
   if (args.verify) {
+    const readCtx = { ...ctx, deadline: Math.min(ctx.deadline ?? Infinity, Date.now() + READ_BUDGET_MS) };
     const toCheck = hits.slice(0, VERIFY_LIMIT);
     await mapLimit(toCheck, 5, async (h) => {
       h.checked = true;
       try {
-        const r = await readPost(ctx, { kind: "post", id: h.id, input: h.url }, {});
+        const r = await readPost(readCtx, { kind: "post", id: h.id, input: h.url }, {});
         if (r.post && !r.post.unavailable) {
           h.post = r.post;
           h.source = r.source;
@@ -1254,7 +1263,7 @@ function renderSearch(r) {
   if (!r.results.length) lines.push("", "No posts. Try other wording, the other language, concrete names, or a wider date range.");
   return lines.join("\n");
 }
-var XAI_BASE, DEFAULT_XAI_MODEL, DEFAULT_MAX_TURNS, RETRY, VERIFY_LIMIT;
+var XAI_BASE, DEFAULT_XAI_MODEL, DEFAULT_MAX_TURNS, RETRY, VERIFY_LIMIT, READ_BUDGET_MS;
 var init_search = __esm({
   "src/search.js"() {
     init_util();
@@ -1265,6 +1274,7 @@ var init_search = __esm({
     DEFAULT_MAX_TURNS = 2;
     RETRY = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
     VERIFY_LIMIT = 20;
+    READ_BUDGET_MS = 8e3;
   }
 });
 
@@ -1398,7 +1408,7 @@ var init_mcp = __esm({
     X_SEARCH_TOOL = {
       name: "x_search",
       title: "Search X",
-      description: "Search X posts by topic. Start with one query; returns links, authors, dates and model-provided snippets. Use x_read on selected links when you need full text or exact quotes. Optional date and handle filters.",
+      description: "Search X posts by topic. Grok finds links; original text, authors and dates come from public post readers. Start with one query. Up to 20 posts are loaded in parallel within an 8-second read budget; unavailable posts keep their links. Use x_read for threads or replies. Optional date and handle filters.",
       inputSchema: {
         type: "object",
         properties: {
@@ -1410,7 +1420,7 @@ var init_mcp = __esm({
           excluded_x_handles: { type: "array", items: { type: "string" }, maxItems: 20, description: "Skip posts from these accounts (max 20)." },
           enable_image_understanding: { type: "boolean", description: "Let the search model look at images in posts." },
           enable_video_understanding: { type: "boolean", description: "Let the search model look at videos in posts." },
-          verify: { type: "boolean", default: false, description: "Also load full posts and metrics for up to 20 hits (slower). Does not check whether claims are true." },
+          verify: { type: "boolean", default: true, description: "Load original posts (default). False returns model snippets instead. This retrieves content, not fact-checking." },
           format: FORMAT
         },
         required: ["queries"],
@@ -1859,7 +1869,7 @@ async function main(argv = process.argv.slice(2), out = (s) => process.stdout.wr
         excluded_x_handles: flags.exclude,
         enable_image_understanding: Boolean(flags.images),
         enable_video_understanding: Boolean(flags.videos),
-        verify: Boolean(flags.verify) && !flags["no-verify"]
+        verify: !flags["no-verify"]
       }, flags, out);
     }
     case "audit": {
@@ -1925,8 +1935,8 @@ Usage
       --posts N [--with-replies]      recent posts for profiles (default 20)
       --translate <lang>  --source <fxtwitter|vxtwitter|syndication>
   x-scout search "<query>" ["<query>"...] [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-      [--handle h]... [--exclude h]... [--max N] [--images] [--videos] [--verify]
-                                      snippets by default; --verify loads full posts (up to 20)
+      [--handle h]... [--exclude h]... [--max N] [--images] [--videos] [--no-verify]
+                                      original posts by default; --no-verify returns model snippets
                                       needs XAI_API_KEY (x-scout setup)
   x-scout audit <@handle|url> [--posts N]
   x-scout mcp                         run as a local MCP server (stdio)

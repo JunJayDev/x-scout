@@ -75,8 +75,9 @@ export const X_SEARCH_TOOL = {
   name: "x_search",
   title: "Search X",
   description:
-    "Search X posts by topic. Start with one query; returns links, authors, dates and model-provided snippets. " +
-    "Use x_read on selected links when you need full text or exact quotes. Optional date and handle filters.",
+    "Search X posts by topic. Grok finds links; original text, authors and dates come from public post readers. " +
+    "Start with one query. Up to 20 posts are loaded in parallel within an 8-second read budget; unavailable posts keep their links. " +
+    "Use x_read for threads or replies. Optional date and handle filters.",
   inputSchema: {
     type: "object",
     properties: {
@@ -88,7 +89,7 @@ export const X_SEARCH_TOOL = {
       excluded_x_handles: { type: "array", items: { type: "string" }, maxItems: 20, description: "Skip posts from these accounts (max 20)." },
       enable_image_understanding: { type: "boolean", description: "Let the search model look at images in posts." },
       enable_video_understanding: { type: "boolean", description: "Let the search model look at videos in posts." },
-      verify: { type: "boolean", default: false, description: "Also load full posts and metrics for up to 20 hits (slower). Does not check whether claims are true." },
+      verify: { type: "boolean", default: true, description: "Load original posts (default). False returns model snippets instead. This retrieves content, not fact-checking." },
       format: FORMAT,
     },
     required: ["queries"],
