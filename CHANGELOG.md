@@ -14,6 +14,9 @@ First release.
   originals by default: Grok returns links only, then public readers load up to 20 posts
   under one 8-second read budget. Supported Grok models use low reasoning effort.
   `verify: false` / `--no-verify` retains model snippets without separate reads.
+  Link selection prioritizes query relevance, specific substance and original sources,
+  reduces near-duplicates and generic promotions, and retains useful differing views.
+  No extra review call or output scoring is added; weak matches need not fill the result cap.
   Valid empty selections stay empty, without padding from viewed citations. Date and handle
   filters use available metadata, with loaded posts taking precedence. Inclusive date range,
   cost cap per query, posts-fetched report. `XAI_API_BASE` supports compatible Responses APIs.

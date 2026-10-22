@@ -97,10 +97,16 @@ function xaiPrompt(query, args) {
   return [
     `Search X for posts that answer: ${query}`,
     `Return up to ${args.maxResults} posts you actually found with the x_search tool, most useful first.`,
-    "Follow the query's topic and intent; include reactions or discussion when requested.",
+    "Select within this search, without a separate scoring, fact-checking or account-audit pass:",
+    "- Match the query's topic and intent first; include reactions or discussion when requested.",
+    "- Prefer specific insights, first-hand experience, methods, data or examples. Skip bare slogans or engagement questions without detail or reasoning, unless requested.",
+    "- Prefer original sources over copies; skip near-duplicates and generic promotions unless the query asks for them.",
+    "- Choose complementary relevant posts, not several versions of the same point. Do not force unrelated viewpoints for balance.",
+    "- Popularity and follower counts are not quality measures. Keep substantive minority or disputed views; agreement is not a selection criterion.",
+    "- Return fewer results rather than pad with weak matches.",
     "Answer with only a JSON array, no prose. Each item:",
     args.verify
-      ? '{"url": "https://x.com/<handle>/status/<id>"}. Return links only; do not copy, summarize or analyze post text.'
+      ? '{"url": "https://x.com/<handle>/status/<id>"}. Return links only; no excerpts, summaries, scores or explanations.'
       : '{"url": "https://x.com/<handle>/status/<id>", "author": "@handle", "date": "YYYY-MM-DD", "text": "the post text, verbatim, up to 280 characters"}',
     "Never invent a URL. If nothing fits, answer [].",
   ].join("\n");
