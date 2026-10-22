@@ -2,7 +2,6 @@
 // text is the default because every token of tool output is paid for by every user.
 
 import { compact } from "./util.js";
-import { postSignals } from "./signals.js";
 
 function when(iso) {
   if (!iso) return "";
@@ -15,17 +14,6 @@ function metricLine(m = {}) {
   return order.filter(([k]) => typeof m[k] === "number").map(([k, label]) => `${compact(m[k])} ${label}`).join(" · ");
 }
 
-function signalLine(post) {
-  const s = postSignals(post);
-  if (!s) return "";
-  const parts = [];
-  if (s.save !== undefined) parts.push(`save ${s.save}`);
-  if (s.talk !== undefined) parts.push(`talk ${s.talk}`);
-  if (s.spread !== undefined) parts.push(`spread ${s.spread}`);
-  if (s.eng !== undefined) parts.push(`eng ${(s.eng * 100).toFixed(2)}%`);
-  return parts.length ? `signals: ${parts.join(" · ")}` : "";
-}
-
 function indent(text, pad) {
   return String(text).split("\n").map((l) => (l ? pad + l : l)).join("\n");
 }
@@ -36,7 +24,6 @@ export function renderPost(p, { pad = "", label = "" } = {}) {
   const head = [
     p.author || "?",
     p.author_name && p.author_name !== (p.author || "").slice(1) ? p.author_name : "",
-    typeof p.author_followers === "number" ? `${compact(p.author_followers)} followers` : "",
     when(p.created_at),
   ].filter(Boolean).join(" · ");
   const lines = [`${label}${head}`, p.url];
@@ -44,8 +31,6 @@ export function renderPost(p, { pad = "", label = "" } = {}) {
   if (p.reposted_by) lines.push(`reposted by ${p.reposted_by}`);
   const m = metricLine(p.metrics);
   if (m) lines.push(m);
-  const s = signalLine(p);
-  if (s) lines.push(s);
   if (p.text_truncated) lines.push("note: text cut by the embed endpoint");
   lines.push("", p.text || "");
   if (p.article) {
@@ -84,6 +69,7 @@ export function renderProfile(u, pad = "") {
 }
 
 function sourceLine(item) {
+  if (!item.fallback_from?.length) return item.note || "";
   const parts = [`source: ${item.source}`];
   if (item.fallback_from) parts.push(`after ${item.fallback_from.join("; ")}`);
   if (item.note) parts.push(item.note);
@@ -95,16 +81,21 @@ export function renderRead(result) {
     const n = `[${i + 1}] `;
     if (item.kind === "error") return `${n}${item.input}: ERROR ${item.error}`;
     if (item.kind === "profile") {
-      const lines = [`${n}${renderProfile(item.profile)}`, sourceLine(item)];
+      const lines = [`${n}${renderProfile(item.profile)}`];
+      const source = sourceLine(item);
+      if (source) lines.push(source);
       if (item.posts_error) lines.push(`recent posts: ${item.posts_error}`);
       if (item.recent_posts) lines.push(`recent posts (${item.recent_posts.length}):`);
       for (const [j, p] of (item.recent_posts || []).entries()) lines.push("", renderPost(p, { pad: "  ", label: `${i + 1}.${j + 1} ` }));
       return lines.join("\n");
     }
-    const lines = [renderPost(item.post, { label: n }), sourceLine(item)];
-    if (item.thread) {
-      lines.push("", `thread (${item.thread.length} posts by the author):`);
-      for (const [j, p] of item.thread.entries()) lines.push(renderPost(p, { pad: "  ", label: `t${j + 1} ` }), "");
+    const lines = [renderPost(item.post, { label: n })];
+    const source = sourceLine(item);
+    if (source) lines.push(source);
+    const thread = (item.thread || []).filter((p) => !item.post?.id || p.id !== item.post.id);
+    if (thread.length) {
+      lines.push("", `thread (${thread.length} more posts by the author):`);
+      for (const [j, p] of thread.entries()) lines.push(renderPost(p, { pad: "  ", label: `t${j + 1} ` }), "");
     }
     if (item.replies) {
       lines.push("", `replies (${item.replies.length}, by ${item.replies_ranking}):`);

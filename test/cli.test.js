@@ -39,7 +39,7 @@ test("read and audit through the CLI with the fake network", async (t) => {
   try {
     let out = "";
     await main(["read", "https://x.com/alice/status/1", "--thread"], (s) => (out += s));
-    assert.match(out, /thread \(3 posts by the author\)/);
+    assert.match(out, /thread \(2 more posts by the author\)/);
     out = "";
     await main(["read", "1", "--json"], (s) => (out += s));
     assert.equal(JSON.parse(out).items[0].post.id, "1");

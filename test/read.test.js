@@ -44,7 +44,8 @@ test("post: full FxTwitter data (quote, media, note, article, translation)", asy
   assert.match(fake.calls[0].headers["user-agent"], /^x-scout\//);
   const text = renderRead(r);
   assert.match(text, /10k views · 100 likes · 30 replies · 20 reposts · 5 quotes · 60 bookmarks/);
-  assert.match(text, /signals: save 0\.6 · talk 0\.3 · spread 0\.25 · eng 2\.15%/);
+  assert.doesNotMatch(text, /^signals:|^source:|followers/m);
+  assert.equal(p.author_followers, 1234, "full metadata remains in JSON");
   assert.match(text, /┌ quoting/);
   assert.match(text, /\[community note\] context note/);
 });
@@ -53,6 +54,11 @@ test("thread and replies modes", async () => {
   const { ctx } = ctxWith();
   const t = await runRead({ targets: ["1"], mode: "thread" }, ctx);
   assert.equal(t.items[0].thread.length, 3);
+  const threadText = renderRead(t);
+  assert.equal(threadText.split("https://x.com/alice/status/1\n").length - 1, 1, "the target is not repeated in its thread");
+  assert.match(threadText, /full text of 101/);
+  assert.match(threadText, /full text of 102/);
+  assert.match(threadText, /thread \(2 more posts by the author\)/);
   const r = await runRead({ targets: ["1"], mode: "replies", max_replies: 3 }, ctx);
   assert.deepEqual(r.items[0].replies.map((x) => x.author), ["@r1", "@r2", "@r3"]);
   const capped = await runRead({ targets: ["1"], mode: "replies", max_replies: 1 }, ctx);
@@ -77,6 +83,7 @@ test("fallbacks: FxTwitter down -> vxTwitter -> X embed", async () => {
   assert.equal(synd.items[0].post.text_truncated, true);
   assert.match(synd.items[0].note, /needs FxTwitter/);
   assert.match(renderRead(synd), /text cut by the embed endpoint/);
+  assert.match(renderRead(synd), /source: syndication.*after.*fxtwitter/);
 });
 
 test("not found everywhere: per-item error; all failed: throws", async () => {
